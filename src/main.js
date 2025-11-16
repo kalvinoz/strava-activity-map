@@ -59,6 +59,8 @@ const exportFps = document.getElementById('export-fps');
 const exportProgress = document.getElementById('export-progress');
 const progressFill = document.getElementById('progress-fill');
 const exportStatus = document.getElementById('export-status');
+const exportComplete = document.getElementById('export-complete');
+const downloadLink = document.getElementById('download-link');
 
 // Load activities from cache
 async function loadActivities() {
@@ -126,9 +128,6 @@ function renderActivities() {
     ? activities
     : activities.filter(a => a.type === selectedType);
 
-  // Create bounds
-  const bounds = [];
-
   // Render each activity
   filtered.forEach(activity => {
     const polylineStr = activity.map?.summary_polyline;
@@ -154,13 +153,7 @@ function renderActivities() {
     `);
 
     polylines.push(polyline);
-    bounds.push(...coords);
   });
-
-  // Fit map to bounds
-  if (bounds.length > 0) {
-    map.fitBounds(bounds);
-  }
 
   console.log(`Rendered ${polylines.length} activities`);
 }
@@ -311,6 +304,9 @@ exportBtn.addEventListener('click', async () => {
       return;
     }
 
+    // Hide previous download link
+    exportComplete.style.display = 'none';
+
     // Show progress
     exportProgress.style.display = 'block';
     exportBtn.disabled = true;
@@ -334,17 +330,19 @@ exportBtn.addEventListener('click', async () => {
       quality: 10
     });
 
-    // Download
+    // Create download link
     const filename = `strava-activities-${formatDateForInput(startDate)}-to-${formatDateForInput(endDate)}.gif`;
-    GifExporter.download(blob, filename);
+    const url = URL.createObjectURL(blob);
+    downloadLink.href = url;
+    downloadLink.download = filename;
 
-    // Reset UI
-    setTimeout(() => {
-      exportProgress.style.display = 'none';
-      exportBtn.disabled = false;
-      exportBtn.textContent = 'Export GIF';
-      progressFill.style.width = '0%';
-    }, 2000);
+    // Show download link
+    exportProgress.style.display = 'none';
+    exportComplete.style.display = 'block';
+    exportBtn.disabled = false;
+    exportBtn.textContent = 'Export GIF';
+
+    console.log(`GIF ready! Size: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
 
   } catch (error) {
     console.error('Export failed:', error);
