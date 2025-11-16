@@ -158,16 +158,15 @@ export class AnimationController {
     // Update progress of drawing activities
     this.activePolylines.forEach((data, activityId) => {
       if (data.drawing && data.progress < 1) {
-        // Gradually draw the polyline
-        data.progress = Math.min(1, data.progress + 0.02); // Adjust speed as needed
+        // Draw instantly - show all completed activities
+        data.progress = 1;
         this._updatePolylineProgress(data);
+        data.drawing = false;
       }
     });
 
-    // Remove old activities if we exceed max visible
-    if (this.activePolylines.size > this.maxVisibleActivities) {
-      this._removeOldestActivities();
-    }
+    // Note: We keep all activities visible during animation
+    // Only remove old ones if performance becomes an issue
   }
 
   /**
@@ -182,11 +181,11 @@ export class AnimationController {
 
     const color = this._getActivityColor(activity.type);
 
-    // Create polyline (initially hidden)
-    const polyline = L.polyline([], {
+    // Create polyline - will be drawn immediately
+    const polyline = L.polyline(coords, {
       color: color,
-      weight: 3,
-      opacity: 0.8,
+      weight: 2,
+      opacity: 0.7,
       className: 'animated-activity'
     }).addTo(this.map);
 
@@ -198,12 +197,12 @@ export class AnimationController {
       Date: ${new Date(activity.start_date).toLocaleDateString()}
     `);
 
-    // Store with metadata
+    // Store with metadata - already fully drawn
     this.activePolylines.set(activity.id, {
       polyline,
       coords,
-      progress: 0,
-      drawing: true,
+      progress: 1,
+      drawing: false,
       activity
     });
 

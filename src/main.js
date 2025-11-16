@@ -1,6 +1,7 @@
 import L from 'leaflet';
 import { decodePolyline } from './utils/polyline.js';
 import { AnimationController } from './animation/AnimationController.js';
+import { GifExporter } from './export/GifExporter.js';
 
 // Initialize map
 const map = L.map('map').setView([0, 0], 2);
@@ -16,6 +17,7 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
 let activities = [];
 let polylines = [];
 let animationController = null;
+let gifExporter = null;
 
 // Activity type colors
 const ACTIVITY_COLORS = {
@@ -44,6 +46,19 @@ const timelineSlider = document.getElementById('timeline-slider');
 const speedSlider = document.getElementById('speed-slider');
 const speedValue = document.getElementById('speed-value');
 const timeDisplay = document.getElementById('time-display');
+
+// Export controls
+const exportControlsEl = document.getElementById('export-controls');
+const exportBtn = document.getElementById('export-btn');
+const exportStartDate = document.getElementById('export-start-date');
+const exportEndDate = document.getElementById('export-end-date');
+const exportDuration = document.getElementById('export-duration');
+const exportWidth = document.getElementById('export-width');
+const exportHeight = document.getElementById('export-height');
+const exportFps = document.getElementById('export-fps');
+const exportProgress = document.getElementById('export-progress');
+const progressFill = document.getElementById('progress-fill');
+const exportStatus = document.getElementById('export-status');
 
 // Load activities from cache
 async function loadActivities() {
@@ -185,6 +200,25 @@ function initializeAnimation() {
 
   // Update initial time display
   updateTimeDisplay(animationController.currentTime);
+
+  // Initialize GIF exporter
+  gifExporter = new GifExporter(animationController, map);
+
+  // Set default export dates
+  if (animationController.startTime && animationController.endTime) {
+    exportStartDate.value = formatDateForInput(animationController.startTime);
+    exportEndDate.value = formatDateForInput(animationController.endTime);
+  }
+
+  // Show export controls
+  exportControlsEl.style.display = 'block';
+}
+
+function formatDateForInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function updateTimeDisplay(date) {
@@ -250,6 +284,74 @@ speedSlider.addEventListener('input', (e) => {
   speedValue.textContent = `${speed} d/s`;
   if (animationController) {
     animationController.setSpeed(speed);
+  }
+});
+
+// Export controls
+exportBtn.addEventListener('click', async () => {
+  if (!gifExporter) return;
+
+  try {
+    // Get export parameters
+    const startDate = new Date(exportStartDate.value);
+    const endDate = new Date(exportEndDate.value);
+    const duration = parseInt(exportDuration.value);
+    const width = parseInt(exportWidth.value);
+    const height = parseInt(exportHeight.value);
+    const fps = parseInt(exportFps.value);
+
+    // Validate dates
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      alert('Please select valid start and end dates');
+      return;
+    }
+
+    if (startDate >= endDate) {
+      alert('Start date must be before end date');
+      return;
+    }
+
+    // Show progress
+    exportProgress.style.display = 'block';
+    exportBtn.disabled = true;
+    exportBtn.textContent = 'Exporting...';
+
+    // Set up progress callback
+    gifExporter.onProgress = (percent, message) => {
+      progressFill.style.width = `${percent}%`;
+      progressFill.textContent = `${Math.round(percent)}%`;
+      exportStatus.textContent = message;
+    };
+
+    // Export GIF
+    const blob = await gifExporter.export({
+      startDate,
+      endDate,
+      duration,
+      width,
+      height,
+      fps,
+      quality: 10
+    });
+
+    // Download
+    const filename = `strava-activities-${formatDateForInput(startDate)}-to-${formatDateForInput(endDate)}.gif`;
+    GifExporter.download(blob, filename);
+
+    // Reset UI
+    setTimeout(() => {
+      exportProgress.style.display = 'none';
+      exportBtn.disabled = false;
+      exportBtn.textContent = 'Export GIF';
+      progressFill.style.width = '0%';
+    }, 2000);
+
+  } catch (error) {
+    console.error('Export failed:', error);
+    alert(`Export failed: ${error.message}`);
+    exportProgress.style.display = 'none';
+    exportBtn.disabled = false;
+    exportBtn.textContent = 'Export GIF';
   }
 });
 
