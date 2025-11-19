@@ -75,13 +75,21 @@ export class GifExporter {
         await this._waitForMapRender();
 
         // Capture frame (polylines only, then composite with base map)
-        const canvas = await this._captureMapCanvas(width, height, baseMapCanvas, mapBounds, mapZoom);
+        const canvas = await this._captureMapCanvas(width, height, baseMapCanvas, mapBounds, mapZoom, false);
         frames.push(canvas);
 
         // Update progress (5-50% for frame capture)
         const progress = 5 + ((i + 1) / frameCount) * 45;
         this._updateProgress(progress, `Captured frame ${i + 1}/${frameCount}`);
       }
+
+      // Capture final "heatmap" frame showing all routes with equal opacity
+      // This highlights the most common paths through overlapping
+      this.animationController.seek(endDate);
+      await this._waitForMapRender();
+      const finalCanvas = await this._captureMapCanvas(width, height, baseMapCanvas, mapBounds, mapZoom, true);
+      frames.push(finalCanvas);
+      this._updateProgress(50, `Captured final heatmap frame`);
 
       // Restore animation state
       this.animationController.seek(originalTime);
@@ -128,9 +136,10 @@ export class GifExporter {
 
   /**
    * Capture map as canvas - composite base map with polylines
+   * @param {boolean} isLastFrame - If true, render all routes with equal opacity to highlight overlaps
    */
-  async _captureMapCanvas(width, height, baseMapCanvas, mapBounds, mapZoom) {
-    console.log(`Capturing frame: ${this.animationController.activePolylines.size} active polylines`);
+  async _captureMapCanvas(width, height, baseMapCanvas, mapBounds, mapZoom, isLastFrame = false) {
+    console.log(`Capturing frame: ${this.animationController.activePolylines.size} active polylines${isLastFrame ? ' (final heatmap frame)' : ''}`);
     console.log(`Export dimensions: ${width}x${height}`);
     console.log(`Base map canvas: ${baseMapCanvas.width}x${baseMapCanvas.height}`);
     console.log(`Map bounds:`, mapBounds.toBBoxString());
@@ -179,14 +188,22 @@ export class GifExporter {
       const polylineOptions = data.polyline.options;
       const baseColor = this._getActivityColor(data.activity.type);
 
-      // Use the darken color method from animation controller
-      const activityDate = new Date(data.activity.start_date);
-      const style = this.animationController._calculateStyle(activityDate, coords, this.animationController.currentTime);
-      const color = this.animationController._darkenColor(baseColor, style.recencyScore * 0.3);
+      if (isLastFrame) {
+        // Final frame: equal opacity for all routes to highlight overlapping paths
+        // Using low opacity so overlaps become more visible through additive blending
+        ctx.strokeStyle = baseColor;
+        ctx.lineWidth = 2.5;
+        ctx.globalAlpha = 0.3;
+      } else {
+        // Normal frame: use recency/overlap calculations
+        const activityDate = new Date(data.activity.start_date);
+        const style = this.animationController._calculateStyle(activityDate, coords, this.animationController.currentTime);
+        const color = this.animationController._darkenColor(baseColor, style.recencyScore * 0.3);
 
-      ctx.strokeStyle = color;
-      ctx.lineWidth = style.weight * 1.5; // Scale up slightly for export
-      ctx.globalAlpha = style.opacity;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = style.weight * 1.5; // Scale up slightly for export
+        ctx.globalAlpha = style.opacity;
+      }
       ctx.stroke();
       drawnCount++;
     });
