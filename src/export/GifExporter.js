@@ -93,9 +93,8 @@ export class GifExporter {
 
       // Capture final "heatmap" frame showing all routes with equal opacity
       // This highlights the most common paths through overlapping
-      this.animationController.seek(endDate);
-      await this._waitForMapRender();
-      const finalCanvas = await this._captureMapCanvas(width, height, baseMapCanvas, mapBounds, mapZoom, true);
+      // We draw ALL activities directly, bypassing the maxVisibleActivities limit
+      const finalCanvas = await this._captureHeatmapFrame(width, height, baseMapCanvas, mapBounds);
       frames.push(finalCanvas);
       this._updateProgress(50, `Captured final heatmap frame`);
 
@@ -270,6 +269,107 @@ export class GifExporter {
   }
 
   /**
+   * Capture heatmap frame showing ALL activities with equal opacity
+   * Bypasses the maxVisibleActivities limit to show complete route coverage
+   */
+  async _captureHeatmapFrame(width, height, baseMapCanvas, mapBounds) {
+    const activities = this.animationController.activities;
+    console.log(`Capturing heatmap frame with ALL ${activities.length} activities`);
+
+    // Create an offscreen canvas
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    // Draw base map first
+    if (baseMapCanvas) {
+      ctx.drawImage(baseMapCanvas, 0, 0, baseMapCanvas.width, baseMapCanvas.height, 0, 0, width, height);
+    } else {
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    // Draw ALL activities with equal opacity
+    let drawnCount = 0;
+    activities.forEach((activity) => {
+      const polylineStr = activity.map?.summary_polyline;
+      if (!polylineStr) return;
+
+      // Decode polyline
+      const coords = this._decodePolyline(polylineStr);
+      if (coords.length < 2) return;
+
+      // Convert lat/lng to pixel coordinates
+      const points = coords.map(([lat, lng]) => {
+        const pixel = this._latLngToPixel(lat, lng, mapBounds, width, height);
+        return pixel;
+      });
+
+      // Draw polyline
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      for (let i = 1; i < points.length; i++) {
+        ctx.lineTo(points[i].x, points[i].y);
+      }
+
+      // Equal style for all routes - low opacity for additive overlap effect
+      const baseColor = this._getActivityColor(activity.type);
+      ctx.strokeStyle = baseColor;
+      ctx.lineWidth = 2.5;
+      ctx.globalAlpha = 0.3;
+      ctx.stroke();
+      drawnCount++;
+    });
+
+    ctx.globalAlpha = 1;
+    console.log(`Drew ${drawnCount} activities on heatmap frame`);
+
+    return canvas;
+  }
+
+  /**
+   * Decode Google polyline format to array of [lat, lng] coordinates
+   */
+  _decodePolyline(encoded) {
+    const points = [];
+    let index = 0;
+    let lat = 0;
+    let lng = 0;
+
+    while (index < encoded.length) {
+      let b;
+      let shift = 0;
+      let result = 0;
+
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+
+      const dlat = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lat += dlat;
+
+      shift = 0;
+      result = 0;
+
+      do {
+        b = encoded.charCodeAt(index++) - 63;
+        result |= (b & 0x1f) << shift;
+        shift += 5;
+      } while (b >= 0x20);
+
+      const dlng = ((result & 1) ? ~(result >> 1) : (result >> 1));
+      lng += dlng;
+
+      points.push([lat / 1e5, lng / 1e5]);
+    }
+
+    return points;
+  }
+
+  /**
    * Get unique activity dates within a date range
    */
   _getActivityDatesInRange(startDate, endDate) {
@@ -301,8 +401,8 @@ export class GifExporter {
    * Calculate frame times, skipping empty periods between activity days
    */
   _calculateFrameTimes(startDate, endDate, frameCount, activityDates) {
-    // If no activities or very few, fall back to uniform distribution
-    if (activityDates.length < 2) {
+    // If no activities, fall back to uniform distribution
+    if (activityDates.length === 0) {
       const totalTime = endDate - startDate;
       const timeStep = totalTime / frameCount;
       return Array.from({ length: frameCount }, (_, i) =>
@@ -310,29 +410,18 @@ export class GifExporter {
       );
     }
 
-    // Distribute frames proportionally across activity days
-    // Each day with activities gets at least one frame
-    const framesPerDay = Math.max(1, Math.floor(frameCount / activityDates.length));
+    // Map frames to activity dates - each frame shows progress through activity days
+    // This skips periods with no activities
     const frameTimes = [];
 
-    for (let i = 0; i < activityDates.length; i++) {
-      const currentDay = activityDates[i];
-      const prevDay = i > 0 ? activityDates[i - 1] : startDate;
-
-      // Add frames for this day
-      // Spread frames across the day to show progressive drawing
-      for (let f = 0; f < framesPerDay && frameTimes.length < frameCount; f++) {
-        const dayStart = new Date(currentDay);
-        dayStart.setHours(0, 0, 0, 0);
-        const progress = f / framesPerDay;
-        const frameTime = new Date(dayStart.getTime() + (24 * 60 * 60 * 1000 * progress));
-        frameTimes.push(frameTime);
-      }
-    }
-
-    // Fill remaining frames at the end date if needed
-    while (frameTimes.length < frameCount) {
-      frameTimes.push(new Date(endDate));
+    for (let i = 0; i < frameCount; i++) {
+      // Calculate which activity day this frame corresponds to
+      const progress = i / (frameCount - 1 || 1);
+      const dateIndex = Math.min(
+        Math.floor(progress * activityDates.length),
+        activityDates.length - 1
+      );
+      frameTimes.push(activityDates[dateIndex]);
     }
 
     return frameTimes;
