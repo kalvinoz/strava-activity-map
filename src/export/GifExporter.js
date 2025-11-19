@@ -37,9 +37,19 @@ export class GifExporter {
     this.isExporting = true;
 
     try {
-      // Calculate frame count
+      // Get unique activity dates within the range (to skip empty days)
+      const activityDates = this._getActivityDatesInRange(startDate, endDate);
+      console.log(`Found ${activityDates.length} days with activities`);
+
+      // Calculate frame count based on activity days, not total time
+      // Distribute frames across days with activities
       const frameCount = Math.floor(duration * fps);
       const frames = [];
+
+      // If no activities, fall back to standard behavior
+      if (activityDates.length === 0) {
+        console.log('No activities found in range, using uniform time distribution');
+      }
 
       console.log(`Will capture ${frameCount} frames`);
 
@@ -51,9 +61,8 @@ export class GifExporter {
       const originalTime = this.animationController.currentTime;
       this.animationController.pause();
 
-      // Calculate time step between frames
-      const totalTime = endDate - startDate;
-      const timeStep = totalTime / frameCount;
+      // Calculate frame times based on activity dates (skip empty periods)
+      const frameTimes = this._calculateFrameTimes(startDate, endDate, frameCount, activityDates);
 
       // Capture base map tiles once (reused for all frames)
       // Also save the map bounds/zoom for coordinate conversion
@@ -63,10 +72,9 @@ export class GifExporter {
       const baseMapCanvas = await this._captureBasemap(width, height);
       console.log('Base map captured', { bounds: mapBounds, zoom: mapZoom });
 
-      // Capture frames
-      for (let i = 0; i < frameCount; i++) {
-        // Calculate current time for this frame
-        const currentTime = new Date(startDate.getTime() + (timeStep * i));
+      // Capture frames using calculated times (skips empty periods)
+      for (let i = 0; i < frameTimes.length; i++) {
+        const currentTime = frameTimes[i];
 
         // Seek animation to this time (in background)
         this.animationController.seek(currentTime);
@@ -79,8 +87,8 @@ export class GifExporter {
         frames.push(canvas);
 
         // Update progress (5-50% for frame capture)
-        const progress = 5 + ((i + 1) / frameCount) * 45;
-        this._updateProgress(progress, `Captured frame ${i + 1}/${frameCount}`);
+        const progress = 5 + ((i + 1) / frameTimes.length) * 45;
+        this._updateProgress(progress, `Captured frame ${i + 1}/${frameTimes.length}`);
       }
 
       // Capture final "heatmap" frame showing all routes with equal opacity
@@ -259,6 +267,75 @@ export class GifExporter {
       'default': '#888888'
     };
     return colors[type] || colors.default;
+  }
+
+  /**
+   * Get unique activity dates within a date range
+   */
+  _getActivityDatesInRange(startDate, endDate) {
+    const activities = this.animationController.activities;
+    const dateSet = new Set();
+
+    activities.forEach(activity => {
+      const activityDate = new Date(activity.start_date);
+      if (activityDate >= startDate && activityDate <= endDate) {
+        // Store date as YYYY-MM-DD string to get unique days
+        const dateKey = activityDate.toISOString().split('T')[0];
+        dateSet.add(dateKey);
+      }
+    });
+
+    // Convert back to sorted Date objects (end of each day)
+    const dates = Array.from(dateSet)
+      .sort()
+      .map(dateStr => {
+        const d = new Date(dateStr);
+        d.setHours(23, 59, 59, 999);
+        return d;
+      });
+
+    return dates;
+  }
+
+  /**
+   * Calculate frame times, skipping empty periods between activity days
+   */
+  _calculateFrameTimes(startDate, endDate, frameCount, activityDates) {
+    // If no activities or very few, fall back to uniform distribution
+    if (activityDates.length < 2) {
+      const totalTime = endDate - startDate;
+      const timeStep = totalTime / frameCount;
+      return Array.from({ length: frameCount }, (_, i) =>
+        new Date(startDate.getTime() + (timeStep * i))
+      );
+    }
+
+    // Distribute frames proportionally across activity days
+    // Each day with activities gets at least one frame
+    const framesPerDay = Math.max(1, Math.floor(frameCount / activityDates.length));
+    const frameTimes = [];
+
+    for (let i = 0; i < activityDates.length; i++) {
+      const currentDay = activityDates[i];
+      const prevDay = i > 0 ? activityDates[i - 1] : startDate;
+
+      // Add frames for this day
+      // Spread frames across the day to show progressive drawing
+      for (let f = 0; f < framesPerDay && frameTimes.length < frameCount; f++) {
+        const dayStart = new Date(currentDay);
+        dayStart.setHours(0, 0, 0, 0);
+        const progress = f / framesPerDay;
+        const frameTime = new Date(dayStart.getTime() + (24 * 60 * 60 * 1000 * progress));
+        frameTimes.push(frameTime);
+      }
+    }
+
+    // Fill remaining frames at the end date if needed
+    while (frameTimes.length < frameCount) {
+      frameTimes.push(new Date(endDate));
+    }
+
+    return frameTimes;
   }
 
   /**
