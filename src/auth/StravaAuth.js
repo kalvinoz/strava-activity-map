@@ -60,6 +60,10 @@ export class StravaAuth {
   /**
    * Get OAuth authorization URL for manual flow
    * User opens this in new tab, authorizes, and copies the code
+   *
+   * NOTE: We always request activity:read_all because Strava requires this
+   * to access ANY activities (public or private). The app has a separate
+   * checkbox to control whether private activities are displayed on the map.
    */
   getAuthorizationUrl() {
     const { clientId } = this.getCredentials();
@@ -67,9 +71,9 @@ export class StravaAuth {
       throw new Error('Client ID not set. Please enter your credentials first.');
     }
 
-    // Get scope preference (read or read_all)
-    const scopeType = sessionStorage.getItem(this.storageKeys.scope) || 'read';
-    const scopePermissions = scopeType === 'read_all' ? 'read,activity:read_all' : 'read,activity:read';
+    // Always request read_all - required to access ANY activities
+    // User can control display of private activities via app UI
+    const scopePermissions = 'read,activity:read_all';
 
     // Use a localhost URL that won't work - user will copy code from the error page
     const redirectUri = 'http://localhost:9999/exchange_token';

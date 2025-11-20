@@ -141,26 +141,10 @@ export class OnboardingUI {
               <small>These are stored only in your browser session</small>
             </div>
 
-            <div class="form-group">
-              <label>Privacy Settings</label>
-              <div style="margin: 10px 0;">
-                <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
-                  <input type="radio" name="privacy-scope" value="read" checked />
-                  <div>
-                    <strong>Public activities only</strong>
-                    <small style="display: block; color: #666; margin-top: 2px;">Only activities you've marked as public will appear on the map</small>
-                  </div>
-                </label>
-              </div>
-              <div style="margin: 10px 0;">
-                <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; cursor: pointer;">
-                  <input type="radio" name="privacy-scope" value="read_all" />
-                  <div>
-                    <strong>Include private activities</strong>
-                    <small style="display: block; color: #666; margin-top: 2px;"><i class="fas fa-exclamation-triangle" style="color: #ffc107;"></i> Private activities will be visible on the exported map</small>
-                  </div>
-                </label>
-              </div>
+            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 12px; margin: 15px 0;">
+              <p style="margin: 0; font-size: 13px; color: #856404; line-height: 1.5;">
+                <i class="fas fa-info-circle" style="color: #ffc107;"></i> <strong>Note:</strong> If you grant access to private activities, they will be visible on the exported map. You'll choose which permissions to grant in the next step.
+              </p>
             </div>
 
             <div id="credentials-error" class="error-message" style="display: none;"></div>
@@ -313,7 +297,6 @@ export class OnboardingUI {
   saveCredentialsAndShowAuth() {
     const clientId = document.getElementById('client-id').value.trim();
     const clientSecret = document.getElementById('client-secret').value.trim();
-    const scope = document.querySelector('input[name="privacy-scope"]:checked').value;
     const errorEl = document.getElementById('credentials-error');
 
     // Validate
@@ -330,8 +313,8 @@ export class OnboardingUI {
       return;
     }
 
-    // Save credentials and scope preference
-    this.auth.saveCredentials(clientId, clientSecret, scope);
+    // Save credentials (request read_all by default, user can deny on Strava page)
+    this.auth.saveCredentials(clientId, clientSecret, 'read_all');
 
     // Show manual auth step
     this.showStep(4);
@@ -363,20 +346,38 @@ export class OnboardingUI {
       return;
     }
 
-    // Try to extract code from URL if full URL was pasted
+    // Try to extract code and scope from URL if full URL was pasted
     let code = input;
+    let grantedScope = 'read'; // Default to read-only
 
     // Check if input looks like a URL
     if (input.includes('code=')) {
       try {
         // Extract code parameter from URL
-        const match = input.match(/code=([^&]+)/);
-        if (match && match[1]) {
-          code = match[1];
+        const codeMatch = input.match(/code=([^&]+)/);
+        if (codeMatch && codeMatch[1]) {
+          code = codeMatch[1];
         } else {
           errorEl.textContent = 'Could not find authorization code in URL. Please paste the full URL from the error page.';
           errorEl.style.display = 'block';
           return;
+        }
+
+        // Extract scope parameter to determine what user granted
+        const scopeMatch = input.match(/scope=([^&]+)/);
+        if (scopeMatch && scopeMatch[1]) {
+          const scopeString = decodeURIComponent(scopeMatch[1]);
+          // Check if user granted read_all (private activities access)
+          if (scopeString.includes('activity:read_all')) {
+            grantedScope = 'read_all';
+          } else if (scopeString.includes('activity:read')) {
+            grantedScope = 'read'; // Public activities only
+          } else {
+            // User denied activity access entirely - this won't work
+            errorEl.textContent = 'You need to grant access to view activities. Please click "Open Strava Authorization" and accept the activity permissions.';
+            errorEl.style.display = 'block';
+            return;
+          }
         }
       } catch (e) {
         errorEl.textContent = 'Could not parse URL. Please paste the full URL from the error page.';
@@ -388,6 +389,10 @@ export class OnboardingUI {
     try {
       errorEl.style.display = 'none';
       progressEl.style.display = 'block';
+
+      // Save the actual granted scope (what user approved on Strava)
+      const { clientId, clientSecret } = this.auth.getCredentials();
+      this.auth.saveCredentials(clientId, clientSecret, grantedScope);
 
       // Exchange code for token
       await this.auth.exchangeCode(code);
@@ -408,11 +413,18 @@ export class OnboardingUI {
    * Initialize step 5 (fetch activities)
    */
   initializeStep5() {
-    // Show athlete info
+    // Show athlete info and scope granted
     const athlete = this.auth.getAthlete();
+    const scope = sessionStorage.getItem(this.auth.storageKeys.scope);
+    const hasPrivateAccess = scope === 'read_all';
+
     if (athlete) {
+      const scopeMessage = hasPrivateAccess
+        ? '<i class="fas fa-lock-open" style="color: #4caf50;"></i> You granted access to <strong>private activities</strong>'
+        : '<i class="fas fa-lock" style="color: #666;"></i> You granted access to <strong>public activities only</strong>';
+
       document.getElementById('athlete-welcome').innerHTML =
-        `Welcome, ${athlete.firstname} ${athlete.lastname}! <i class="fas fa-party-horn" style="color: #fc4c02;"></i>`;
+        `Welcome, ${athlete.firstname} ${athlete.lastname}! <i class="fas fa-hand-wave" style="color: #fc4c02;"></i><br><small style="color: #666;">${scopeMessage}</small>`;
     }
 
     // Check for cached activities

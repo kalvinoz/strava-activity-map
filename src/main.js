@@ -25,20 +25,80 @@ let activities = [];
 let polylines = [];
 let animationController = null;
 let gifExporter = null;
-
-// Activity type colors
-const ACTIVITY_COLORS = {
-  'Run': '#fc4c02',
-  'Ride': '#0066cc',
-  'Swim': '#00cccc',
-  'Walk': '#66cc00',
-  'Hike': '#996600',
-  'default': '#888888'
+let currentColorScheme = 'strava';
+let captureBox = {
+  ratio: 'max',
+  bounds: null
 };
+
+// Color schemes
+const COLOR_SCHEMES = {
+  'strava': {
+    name: 'Strava',
+    colors: {
+      'Run': '#fc4c02',
+      'Ride': '#0066cc',
+      'Swim': '#00cccc',
+      'Walk': '#66cc00',
+      'Hike': '#996600',
+      'default': '#888888'
+    }
+  },
+  'sunset': {
+    name: 'Sunset',
+    colors: {
+      'Run': '#ff6b35',
+      'Ride': '#f7931e',
+      'Swim': '#fdc70d',
+      'Walk': '#f3a683',
+      'Hike': '#ee5a6f',
+      'default': '#d8b4a0'
+    }
+  },
+  'ocean': {
+    name: 'Ocean',
+    colors: {
+      'Run': '#006994',
+      'Ride': '#007ea7',
+      'Swim': '#00a8cc',
+      'Walk': '#60d394',
+      'Hike': '#aaf683',
+      'default': '#86a5b5'
+    }
+  },
+  'forest': {
+    name: 'Forest',
+    colors: {
+      'Run': '#2d5016',
+      'Ride': '#4a7c1e',
+      'Swim': '#6ba82f',
+      'Walk': '#a0c334',
+      'Hike': '#d4e157',
+      'default': '#8d9e6e'
+    }
+  },
+  'monochrome': {
+    name: 'Monochrome',
+    colors: {
+      'Run': '#1a1a1a',
+      'Ride': '#333333',
+      'Swim': '#4d4d4d',
+      'Walk': '#666666',
+      'Hike': '#808080',
+      'default': '#999999'
+    }
+  }
+};
+
+// Get current activity colors
+function getActivityColors() {
+  return COLOR_SCHEMES[currentColorScheme].colors;
+}
 
 // DOM elements
 const loadingEl = document.getElementById('loading');
 const loadBtn = document.getElementById('load-btn');
+const refreshActivitiesBtn = document.getElementById('refresh-activities-btn');
 const activityTypeAll = document.getElementById('activity-type-all');
 const activityTypeList = document.getElementById('activity-type-list');
 const statCount = document.getElementById('stat-count');
@@ -164,14 +224,24 @@ function handleActivitiesLoaded(loadedActivities) {
   // Populate activity type filter
   populateActivityTypes();
 
+  // Populate color schemes
+  populateColorSchemes();
+
   // Initialize animation
   initializeAnimation();
+
+  // Initialize capture box
+  initializeCaptureBox();
 
   // Hide loading
   loadingEl.classList.add('hidden');
 
-  // Update load button text
-  loadBtn.textContent = 'Refresh Activities';
+  // Show refresh button and hide load button
+  refreshActivitiesBtn.style.display = 'inline-block';
+  loadBtn.style.display = 'none';
+
+  // Show instructions popup
+  document.getElementById('instructions-popup').classList.add('active');
 
   console.log(`Loaded ${activities.length} activities`);
 }
@@ -191,39 +261,96 @@ function updateStats() {
 function populateActivityTypes() {
   const types = [...new Set(activities.map(a => a.type))].sort();
 
-  // Clear existing checkboxes
+  // Clear existing pills
   activityTypeList.innerHTML = '';
 
-  // Create checkbox for each activity type
-  types.forEach(type => {
-    const div = document.createElement('div');
-    div.style.marginBottom = '6px';
+  // Get the parent pills container
+  const pillsContainer = activityTypeList.parentElement;
 
+  // Create pill for each activity type
+  types.forEach(type => {
     const label = document.createElement('label');
-    label.style.display = 'flex';
-    label.style.alignItems = 'center';
-    label.style.gap = '6px';
-    label.style.cursor = 'pointer';
-    label.style.fontWeight = 'normal';
+    label.className = 'activity-pill';
 
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.className = 'activity-type-checkbox';
     checkbox.value = type;
-    checkbox.checked = true; // All types selected by default
-    checkbox.addEventListener('change', handleActivityTypeChange);
+    checkbox.checked = false; // Start unselected (All is selected)
 
     const span = document.createElement('span');
     span.textContent = type;
 
     label.appendChild(checkbox);
     label.appendChild(span);
-    div.appendChild(label);
-    activityTypeList.appendChild(div);
+
+    // Toggle selected class on click
+    label.addEventListener('click', (e) => {
+      e.preventDefault();
+      checkbox.checked = !checkbox.checked;
+      label.classList.toggle('selected', checkbox.checked);
+      handleActivityTypeChange();
+    });
+
+    pillsContainer.appendChild(label);
   });
 
-  // Show the list
-  activityTypeList.style.display = 'block';
+  // Hide the placeholder div
+  activityTypeList.style.display = 'none';
+}
+
+// Populate color schemes
+function populateColorSchemes() {
+  const container = document.getElementById('color-schemes-list');
+  container.innerHTML = '';
+
+  Object.keys(COLOR_SCHEMES).forEach(schemeKey => {
+    const scheme = COLOR_SCHEMES[schemeKey];
+
+    const label = document.createElement('label');
+    label.style.cssText = 'display: flex; align-items: center; margin: 8px 0; cursor: pointer;';
+
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = 'color-scheme';
+    radio.value = schemeKey;
+    radio.checked = schemeKey === currentColorScheme;
+    radio.style.marginRight = '8px';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = scheme.name;
+    nameSpan.style.marginRight = '10px';
+
+    // Color preview
+    const preview = document.createElement('div');
+    preview.style.cssText = 'display: flex; gap: 2px; margin-left: auto;';
+
+    // Show 3 sample colors
+    const sampleTypes = ['Run', 'Ride', 'Swim'];
+    sampleTypes.forEach(type => {
+      const colorBox = document.createElement('div');
+      colorBox.style.cssText = `width: 16px; height: 16px; background: ${scheme.colors[type]}; border-radius: 2px;`;
+      preview.appendChild(colorBox);
+    });
+
+    label.appendChild(radio);
+    label.appendChild(nameSpan);
+    label.appendChild(preview);
+
+    label.addEventListener('click', () => {
+      radio.checked = true;
+      currentColorScheme = schemeKey;
+
+      // Re-render activities with new colors
+      if (animationController) {
+        initializeAnimation();
+      } else {
+        renderActivities();
+      }
+    });
+
+    container.appendChild(label);
+  });
 }
 
 // Get selected activity types
@@ -241,10 +368,16 @@ function handleActivityTypeChange() {
   const checkboxes = document.querySelectorAll('.activity-type-checkbox');
   const anyChecked = Array.from(checkboxes).some(cb => cb.checked);
 
-  // If no individual types are checked, check "All Activities"
-  if (!anyChecked) {
+  // If any individual type is checked, uncheck "All"
+  if (anyChecked) {
+    activityTypeAll.checked = false;
+  } else {
+    // If no individual types are checked, check "All Activities"
     activityTypeAll.checked = true;
-    activityTypeList.style.display = 'none';
+    // Reset all pills to unselected
+    document.querySelectorAll('.activity-pill:not(.all-pill)').forEach(pill => {
+      pill.classList.remove('selected');
+    });
   }
 
   // Re-render activities with new filter
@@ -274,7 +407,8 @@ function renderActivities() {
     const coords = decodePolyline(polylineStr);
     if (coords.length === 0) return;
 
-    const color = ACTIVITY_COLORS[activity.type] || ACTIVITY_COLORS.default;
+    const colors = getActivityColors();
+    const color = colors[activity.type] || colors.default;
 
     const polyline = L.polyline(coords, {
       color: color,
@@ -313,8 +447,8 @@ function initializeAnimation() {
   polylines.forEach(p => p.remove());
   polylines = [];
 
-  // Create new animation controller
-  animationController = new AnimationController(filtered, map);
+  // Create new animation controller with color function
+  animationController = new AnimationController(filtered, map, getActivityColors);
 
   // Set up callbacks
   animationController.onTimeUpdate = (currentTime) => {
@@ -388,25 +522,129 @@ function updateExportDimensions() {
   console.log(`Export dimensions set to ${targetWidth}x${targetHeight} (aspect ratio: ${aspectRatio.toFixed(2)})`);
 }
 
+// Initialize capture box
+function initializeCaptureBox() {
+  const captureBoxEl = document.getElementById('capture-box');
+  updateCaptureBox('max');
+  captureBoxEl.classList.add('active');
+}
+
+// Update capture box based on aspect ratio
+function updateCaptureBox(ratio) {
+  captureBox.ratio = ratio;
+
+  const mapContainer = map.getContainer();
+  const mapWidth = mapContainer.clientWidth;
+  const mapHeight = mapContainer.clientHeight;
+
+  let width, height;
+
+  // Common phone aspect ratios
+  const VERTICAL_PHONE = 9 / 16;  // 9:16 (portrait)
+  const HORIZONTAL_PHONE = 16 / 9; // 16:9 (landscape)
+
+  switch (ratio) {
+    case 'max':
+      width = mapWidth;
+      height = mapHeight;
+      break;
+
+    case 'square':
+      const size = Math.min(mapWidth, mapHeight);
+      width = size;
+      height = size;
+      break;
+
+    case 'vertical':
+      height = mapHeight * 0.9; // 90% of map height
+      width = height * VERTICAL_PHONE;
+      if (width > mapWidth * 0.9) {
+        width = mapWidth * 0.9;
+        height = width / VERTICAL_PHONE;
+      }
+      break;
+
+    case 'horizontal':
+      width = mapWidth * 0.9; // 90% of map width
+      height = width / HORIZONTAL_PHONE;
+      if (height > mapHeight * 0.9) {
+        height = mapHeight * 0.9;
+        width = height * HORIZONTAL_PHONE;
+      }
+      break;
+
+    case 'free':
+      // Keep current dimensions
+      const captureBoxEl = document.getElementById('capture-box');
+      width = parseInt(captureBoxEl.style.width) || mapWidth;
+      height = parseInt(captureBoxEl.style.height) || mapHeight;
+      break;
+  }
+
+  // Center the box
+  const left = (mapWidth - width) / 2;
+  const top = (mapHeight - height) / 2;
+
+  const captureBoxEl = document.getElementById('capture-box');
+  captureBoxEl.style.left = `${left}px`;
+  captureBoxEl.style.top = `${top}px`;
+  captureBoxEl.style.width = `${width}px`;
+  captureBoxEl.style.height = `${height}px`;
+
+  // Update label
+  const labelEl = document.getElementById('capture-box-label');
+  const aspectRatio = (width / height).toFixed(2);
+  labelEl.textContent = `${Math.round(width)}×${Math.round(height)} (${aspectRatio}:1)`;
+
+  // Store bounds for export
+  captureBox.bounds = {
+    left,
+    top,
+    width,
+    height
+  };
+
+  // Update export dimensions to match capture box
+  exportWidth.value = Math.round(width);
+  exportHeight.value = Math.round(height);
+}
+
 // Event listeners
 loadBtn.addEventListener('click', () => {
   // Re-fetch activities
   showOnboarding();
 });
 
-// "All Activities" checkbox handler
-activityTypeAll.addEventListener('change', () => {
-  const checkboxes = document.querySelectorAll('.activity-type-checkbox');
+refreshActivitiesBtn.addEventListener('click', () => {
+  // Re-fetch activities from Strava
+  showOnboarding();
+});
 
-  if (activityTypeAll.checked) {
-    // Hide individual checkboxes
-    activityTypeList.style.display = 'none';
-    // Uncheck all individual types
-    checkboxes.forEach(cb => cb.checked = false);
+// "All Activities" pill handler
+activityTypeAll.parentElement.addEventListener('click', (e) => {
+  e.preventDefault();
+
+  const checkboxes = document.querySelectorAll('.activity-type-checkbox');
+  const pills = document.querySelectorAll('.activity-pill:not(.all-pill)');
+
+  if (!activityTypeAll.checked) {
+    // Selecting "All" - deselect individual types
+    activityTypeAll.checked = true;
+    checkboxes.forEach(cb => {
+      cb.checked = false;
+    });
+    pills.forEach(pill => {
+      pill.classList.remove('selected');
+    });
   } else {
-    // Show individual checkboxes and select all
-    activityTypeList.style.display = 'block';
-    checkboxes.forEach(cb => cb.checked = true);
+    // Deselecting "All" - select all individual types
+    activityTypeAll.checked = false;
+    checkboxes.forEach(cb => {
+      cb.checked = true;
+    });
+    pills.forEach(pill => {
+      pill.classList.add('selected');
+    });
   }
 
   // Re-render
@@ -455,21 +693,36 @@ speedSlider.addEventListener('input', (e) => {
   }
 });
 
-// Export dimension controls - maintain aspect ratio
+// Aspect ratio pill controls
+document.querySelectorAll('.aspect-ratio-pill').forEach(pill => {
+  pill.addEventListener('click', () => {
+    // Deselect all pills
+    document.querySelectorAll('.aspect-ratio-pill').forEach(p => p.classList.remove('selected'));
+
+    // Select this pill
+    pill.classList.add('selected');
+
+    // Update capture box
+    const ratio = pill.getAttribute('data-ratio');
+    updateCaptureBox(ratio);
+  });
+});
+
+// Export dimension controls - update capture box when dimensions change
 exportWidth.addEventListener('input', () => {
-  if (!map) return;
-  const mapSize = map.getSize();
-  const aspectRatio = mapSize.x / mapSize.y;
-  const newHeight = Math.round(parseInt(exportWidth.value) / aspectRatio);
-  exportHeight.value = newHeight;
+  if (captureBox.ratio !== 'free') return;
+  const captureBoxEl = document.getElementById('capture-box');
+  const newWidth = parseInt(exportWidth.value);
+  const aspectRatio = parseInt(captureBoxEl.style.width) / parseInt(captureBoxEl.style.height);
+  exportHeight.value = Math.round(newWidth / aspectRatio);
 });
 
 exportHeight.addEventListener('input', () => {
-  if (!map) return;
-  const mapSize = map.getSize();
-  const aspectRatio = mapSize.x / mapSize.y;
-  const newWidth = Math.round(parseInt(exportHeight.value) * aspectRatio);
-  exportWidth.value = newWidth;
+  if (captureBox.ratio !== 'free') return;
+  const captureBoxEl = document.getElementById('capture-box');
+  const newHeight = parseInt(exportHeight.value);
+  const aspectRatio = parseInt(captureBoxEl.style.width) / parseInt(captureBoxEl.style.height);
+  exportWidth.value = Math.round(newHeight * aspectRatio);
 });
 
 // Export controls

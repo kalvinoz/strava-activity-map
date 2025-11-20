@@ -29,8 +29,22 @@ export class StravaAPI {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(`Failed to fetch activities: ${error.message || response.statusText}`);
+        let errorMessage = response.statusText;
+        try {
+          const error = await response.json();
+          errorMessage = error.message || error.errors?.[0]?.message || errorMessage;
+
+          // Add helpful context for common errors
+          if (response.status === 401) {
+            errorMessage = `Authorization failed. Please try re-authorizing with Strava. (${errorMessage})`;
+          } else if (response.status === 403) {
+            errorMessage = `Access forbidden. You may need to grant additional permissions. (${errorMessage})`;
+          }
+        } catch (e) {
+          // Response wasn't JSON, use status text
+        }
+
+        throw new Error(`Failed to fetch activities: ${errorMessage}`);
       }
 
       const batch = await response.json();

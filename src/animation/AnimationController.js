@@ -3,9 +3,17 @@
  * Manages time-based animation of activities on the map
  */
 export class AnimationController {
-  constructor(activities, map) {
+  constructor(activities, map, getColorsFn) {
     this.activities = activities;
     this.map = map;
+    this.getColorsFn = getColorsFn || (() => ({
+      'Run': '#fc4c02',
+      'Ride': '#0066cc',
+      'Swim': '#00cccc',
+      'Walk': '#66cc00',
+      'Hike': '#996600',
+      'default': '#888888'
+    }));
 
     // Sort activities by date
     this.sortedActivities = [...activities].sort((a, b) =>
@@ -417,15 +425,7 @@ export class AnimationController {
    * Get color for activity type
    */
   _getActivityColor(type) {
-    const colors = {
-      'Run': '#fc4c02',
-      'Ride': '#0066cc',
-      'Swim': '#00cccc',
-      'Walk': '#66cc00',
-      'Hike': '#996600',
-      'VirtualRide': '#8800cc',
-      'default': '#888888'
-    };
+    const colors = this.getColorsFn();
     return colors[type] || colors.default;
   }
 
