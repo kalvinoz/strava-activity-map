@@ -70,9 +70,13 @@ export class StravaAuth {
     if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
       // Local development - use localhost with port
       redirectUri = `http://localhost:${window.location.port}`;
+    } else if (window.location.hostname === 'strava-gif.pages.dev') {
+      // Production domain - always use production URL (not preview deployments)
+      redirectUri = 'https://strava-gif.pages.dev';
     } else {
-      // Production - use actual domain
-      redirectUri = window.location.origin + window.location.pathname;
+      // Fallback for other domains or preview deployments
+      // This will redirect to production after OAuth
+      redirectUri = 'https://strava-gif.pages.dev';
     }
 
     const scope = 'read,activity:read_all';

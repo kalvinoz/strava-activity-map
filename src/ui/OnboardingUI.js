@@ -38,9 +38,38 @@ export class OnboardingUI {
   }
 
   /**
+   * Get the correct domain for OAuth callback
+   */
+  getCallbackDomain() {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return hostname;
+    } else {
+      // Always use production domain, even on preview deployments
+      return 'strava-gif.pages.dev';
+    }
+  }
+
+  /**
+   * Get the correct website URL for OAuth
+   */
+  getWebsiteURL() {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return window.location.origin;
+    } else {
+      // Always use production URL, even on preview deployments
+      return 'https://strava-gif.pages.dev';
+    }
+  }
+
+  /**
    * Get onboarding HTML
    */
   getOnboardingHTML() {
+    const websiteURL = this.getWebsiteURL();
+    const callbackDomain = this.getCallbackDomain();
+
     return `
       <div class="onboarding-overlay">
         <div class="onboarding-modal">
@@ -82,10 +111,10 @@ export class OnboardingUI {
                     <li><strong>Application Name:</strong> "My Activity Map" (or any name)</li>
                     <li><strong>Category:</strong> "Visualizer" (recommended, but any option works)</li>
                     <li><strong>Club:</strong> Leave blank</li>
-                    <li><strong>Website:</strong> <code id="website-url">${window.location.origin}</code>
+                    <li><strong>Website:</strong> <code id="website-url">${websiteURL}</code>
                       <button class="btn-copy" onclick="onboarding.copyToClipboard('website-url')">Copy</button>
                     </li>
-                    <li><strong>Authorization Callback Domain:</strong> <code id="callback-domain">${window.location.hostname}</code>
+                    <li><strong>Authorization Callback Domain:</strong> <code id="callback-domain">${callbackDomain}</code>
                       <button class="btn-copy" onclick="onboarding.copyToClipboard('callback-domain')">Copy</button>
                     </li>
                   </ul>
