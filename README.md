@@ -1,132 +1,329 @@
 # Strava Activity Map Visualizer
 
-Visualize and animate your Strava activities on an interactive map over time. Export the animation as a video or GIF.
+Visualize and animate your Strava activities on an interactive map. Export beautiful animated GIFs showing your fitness journey over time!
+
+**🔒 100% Privacy-First**: Runs entirely in your browser. No data sent to any server. You use your own Strava API credentials.
+
+**🌍 Live Demo**: [https://strava-gif.pages.dev](https://strava-gif.pages.dev)
 
 ![Example animation](example.gif)
 
-## Features
+## ✨ Features
 
-- **Interactive Map Visualization**: View all your activities on a dynamic map
-- **Time-based Animation**: Watch your activities animate chronologically with polyline drawing
-- **Advanced Filtering**: Filter by activity type, distance, location, date range, and more
-- **Export Options**: Export animations as MP4 videos or animated GIFs
-- **Strava API Integration**: Fetch activities directly from your Strava account
+- **🗺️ Interactive Map Visualization** - View all your activities on a dynamic map
+- **⏱️ Time-based Animation** - Watch your activities appear chronologically
+- **🎨 Activity Type Colors** - Different colors for runs, rides, walks, etc.
+- **📊 Smart Heatmap** - Final frame shows your most-traveled routes
+- **🎬 GIF Export** - Export animations as high-quality animated GIFs
+- **🔒 Privacy-First** - All processing happens in your browser
+- **💾 Session Cache** - Data cached locally (cleared on browser close)
+- **🚫 No Backend Required** - Deploy to free static hosting
 
-## Prerequisites
+---
 
-- Node.js 18+ installed
-- Strava API credentials (Client ID and Client Secret)
-- A Mapbox account (free tier is sufficient) for map tiles
+## 🚀 Quick Start
 
-## Setup
+### For Users (Deployed Site)
 
-### 1. Clone the repository
+1. Visit the deployed site
+2. Click "Get Started"
+3. Create your Strava API app (guided step-by-step)
+4. Enter your Client ID and Secret
+5. Authorize with Strava
+6. Fetch your activities
+7. Watch the animation and export GIFs!
+
+**Everything runs in your browser. Your credentials and data never leave your device.**
+
+### For Developers (Local Development)
 
 ```bash
-git clone <your-repo-url>
-cd strava-activity-map
-```
-
-### 2. Install dependencies
-
-```bash
+# Install dependencies
 npm install
+
+# Run dev server
+npm run dev
+
+# Open http://localhost:5173
 ```
 
-### 3. Configure Strava API
+**Note:** For local OAuth to work, create a Strava API app with callback domain `localhost`.
+
+---
+
+## 🏗️ Architecture
+
+This is a **fully static website** with no backend:
+
+```
+User's Browser ←→ Strava API
+      ↓
+  sessionStorage (credentials + activities)
+      ↓
+  gif.js + html2canvas (GIF export)
+```
+
+**Client-Side Components:**
+
+- `StravaAuth.js` - OAuth flow & credential management
+- `StravaAPI.js` - Fetch activities from Strava API
+- `OnboardingUI.js` - Step-by-step setup wizard
+- `AnimationController.js` - Map animation engine
+- `GifExporter.js` - Browser-based GIF generation
+
+**Key Libraries:**
+
+- [Leaflet](https://leafletjs.com/) - Interactive maps
+- [gif.js](https://github.com/jnordberg/gif.js) - Client-side GIF encoding
+- [html2canvas](https://html2canvas.hertzen.com/) - Map capture
+- [Vite](https://vitejs.dev/) - Build tool
+
+---
+
+## 📋 Strava API Setup
+
+Users need their own Strava API application (takes ~2 minutes):
+
+### Step 1: Create API App
 
 1. Go to [Strava API Settings](https://www.strava.com/settings/api)
-2. Create an application if you haven't already
-3. Note your Client ID and Client Secret
-4. Set the Authorization Callback Domain to `localhost`
+2. Scroll to "My API Application"
+3. Fill in the form:
+   - **Application Name**: "My Activity Map"
+   - **Category**: "Visualizer"
+   - **Website**: Your deployed URL
+   - **Authorization Callback Domain**: Your domain (e.g., `yourusername.github.io`)
+4. Click "Create"
 
-### 4. Set up environment variables
+### Step 2: Get Credentials
 
-Create a `.env` file in the project root:
+You'll see your **Client ID** (a number) and **Client Secret** (a long string). Keep these handy!
 
-```env
-STRAVA_CLIENT_ID=your_client_id
-STRAVA_CLIENT_SECRET=your_client_secret
-```
+### Step 3: Use the App
 
-### 5. Authenticate with Strava
+Enter these credentials in the app's onboarding wizard. That's it!
 
-```bash
-npm run fetch
-```
+---
 
-This will open a browser window for OAuth authentication.
+## 🚀 Deployment
 
-## Usage
+Deploy this as a **static website** to any CDN. No server required!
 
-### Fetch Activities
+### Cloudflare Pages (Recommended - This Repo)
 
-```bash
-npm run fetch
-```
-
-### Visualize Activities (Interactive Mode)
+This repository is deployed to Cloudflare Pages:
 
 ```bash
+# One-command deploy
+npm run deploy
+```
+
+**Live at:** https://strava-gif.pages.dev
+
+See [CLOUDFLARE_DEPLOYMENT.md](CLOUDFLARE_DEPLOYMENT.md) for detailed instructions.
+
+### GitHub Pages (Alternative)
+
+```bash
+npm install --save-dev gh-pages
+npm run build
+npx gh-pages -d dist
+```
+
+Your site: `https://yourusername.github.io/strava-activity-map`
+
+### Netlify (Popular & Simple)
+
+```bash
+npm install -g netlify-cli
+npm run build
+netlify deploy --prod
+```
+
+Your site: `https://your-app.netlify.app`
+
+### Vercel (Modern Platform)
+
+```bash
+npm install -g vercel
+vercel
+```
+
+Your site: `https://strava-activity-map.vercel.app`
+
+**See [STATIC_DEPLOYMENT.md](STATIC_DEPLOYMENT.md) for detailed deployment guide.**
+
+---
+
+## 🔒 Privacy & Security
+
+### What Gets Stored (All Client-Side)
+
+**In sessionStorage** (auto-cleared when tab closes):
+- Strava Client ID & Client Secret
+- OAuth access & refresh tokens
+- Fetched activities data
+
+**What NEVER happens:**
+- ❌ No data sent to any backend server (there is no server!)
+- ❌ No credentials stored permanently
+- ❌ No tracking or analytics (unless you add them)
+- ❌ No user accounts or databases
+
+### Data Flow
+
+```
+1. User enters credentials → sessionStorage
+2. OAuth redirect → Strava → Back to browser
+3. Fetch activities → Direct from Strava API
+4. Process & animate → In-browser (Leaflet.js)
+5. Export GIF → In-browser (gif.js)
+6. Close browser → All data deleted
+```
+
+---
+
+## 📦 Build & Development
+
+```bash
+# Install dependencies
+npm install
+
+# Run dev server (with hot reload)
 npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
 ```
 
-Open your browser to `http://localhost:5173`
-
-### Export Animation
-
-#### Via UI (Recommended)
-
-The easiest way to export your animation is through the web interface:
-
-1. Run `npm run dev` and open `http://localhost:5173`
-2. Configure your filters and animation settings in the sidebar
-3. Click the **Export** button in the controls panel
-4. Choose your format (MP4 or GIF) and quality settings
-5. Click **Start Export** to generate and download your animation
-
-The UI provides a live preview and lets you fine-tune settings before exporting.
-
-#### Via Command Line
-
-For automated or scripted exports, you can use the CLI:
-
+**Legacy Node.js scripts** (not used in deployed app):
 ```bash
-npm run export -- --format mp4 --duration 30
+# Authenticate (creates .tokens file locally)
+npm run auth
+
+# Fetch activities to local JSON file
+npm run fetch
 ```
 
-Options:
-- `--format`: mp4 or gif (default: mp4)
-- `--duration`: Duration in seconds (default: 30)
-- `--filter-type`: Filter by activity type (e.g., Run, Ride, Swim)
-- `--filter-distance-min`: Minimum distance in meters
-- `--filter-distance-max`: Maximum distance in meters
-- `--filter-date-start`: Start date (YYYY-MM-DD)
-- `--filter-date-end`: End date (YYYY-MM-DD)
-- `--filter-location`: Bounding box coordinates
+---
 
-## Project Structure
+## 🎨 Customization
+
+### Change Colors
+
+Edit activity type colors in [src/main.js](src/main.js:22-29):
+
+```javascript
+const ACTIVITY_COLORS = {
+  'Run': '#fc4c02',      // Strava orange
+  'Ride': '#0066cc',     // Blue
+  'Swim': '#00cccc',     // Cyan
+  // ... add more
+};
+```
+
+### Customize Onboarding
+
+Edit the wizard in [src/ui/OnboardingUI.js](src/ui/OnboardingUI.js) to change:
+- Welcome message
+- Step instructions
+- Privacy notice
+- Styling
+
+### Add Analytics
+
+Add your tracking code to [index.html](index.html) (e.g., Google Analytics, Plausible).
+
+---
+
+## 🐛 Troubleshooting
+
+### "OAuth authorization failed"
+
+- ✅ Double-check Client ID and Secret
+- ✅ Verify callback domain matches exactly (no `http://` or trailing `/`)
+- ✅ Make sure you're visiting the URL you configured
+
+### "Failed to fetch activities"
+
+- ✅ Check browser console for errors
+- ✅ Ensure OAuth succeeded (check sessionStorage in DevTools)
+- ✅ Strava rate limits: 100 req/15min, 1000 req/day
+
+### "sessionStorage full"
+
+- ✅ App automatically falls back to localStorage
+- ✅ If you have 10,000+ activities, may hit browser limits
+- ✅ Try filtering to a shorter date range
+
+### GIF export is slow or fails
+
+- ✅ Reduce duration (e.g., 5 seconds instead of 10)
+- ✅ Lower frame rate (10 FPS instead of 15)
+- ✅ Smaller dimensions (800x600 instead of 1200x800)
+- ✅ Use Chrome or Edge (best Canvas performance)
+
+---
+
+## 📂 Project Structure
 
 ```
 strava-activity-map/
 ├── src/
-│   ├── components/          # UI components
-│   ├── map/                 # Map rendering logic
-│   ├── animation/           # Animation engine
-│   ├── filters/             # Activity filtering
-│   ├── export/              # Video/GIF export
-│   ├── scripts/             # CLI scripts
-│   └── utils/               # Helper functions
-├── data/                    # Cached activity data
-├── output/                  # Exported videos/GIFs
-├── public/                  # Static assets
-└── .env                     # Environment variables
+│   ├── auth/
+│   │   └── StravaAuth.js          # OAuth & session management
+│   ├── api/
+│   │   └── StravaAPI.js           # Strava API client
+│   ├── ui/
+│   │   └── OnboardingUI.js        # Setup wizard
+│   ├── animation/
+│   │   └── AnimationController.js # Map animation
+│   ├── export/
+│   │   └── GifExporter.js         # GIF generation
+│   ├── utils/
+│   │   └── polyline.js            # Polyline decoding
+│   └── main.js                    # App entry point
+├── public/
+│   └── gif.worker.js              # GIF encoder worker
+├── index.html                     # Single page app
+├── vite.config.js                 # Build config
+└── package.json
 ```
 
-## Roadmap
+---
 
-See [PROJECT_PLAN.md](PROJECT_PLAN.md) for detailed implementation phases.
+## 🙏 Credits
 
-## License
+- **Strava API** for activity data
+- **OpenStreetMap** & **CARTO** for map tiles
+- **Leaflet** for mapping library
+- **gif.js** for browser-based GIF encoding
 
-MIT
+---
+
+## 📄 License
+
+MIT License - see [LICENSE](LICENSE) file
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Please open an issue or PR.
+
+**Ideas for contributions:**
+- Import from GPX/FIT files (no Strava account needed)
+- More activity type colors
+- Custom color themes
+- Video export (WebM/MP4)
+- Heatmap mode
+- 3D terrain visualization
+
+---
+
+## ⭐ Star this repo if you find it useful!
+
+Questions? Open an issue on GitHub.

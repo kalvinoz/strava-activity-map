@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "deploy": "./deploy.sh",
     "fetch": "node src/scripts/fetchActivities.js",
     "visualize": "node src/scripts/visualize.js",
     "export": "node src/scripts/export.js"

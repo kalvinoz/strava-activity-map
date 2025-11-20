@@ -1,0 +1,230 @@
+/**
+ * Client-side Strava OAuth Authentication
+ * No server required - all credentials stored in sessionStorage
+ */
+
+export class StravaAuth {
+  constructor() {
+    this.storageKeys = {
+      clientId: 'strava_client_id',
+      clientSecret: 'strava_client_secret',
+      accessToken: 'strava_access_token',
+      refreshToken: 'strava_refresh_token',
+      expiresAt: 'strava_expires_at',
+      athlete: 'strava_athlete'
+    };
+  }
+
+  /**
+   * Check if user has provided credentials
+   */
+  hasCredentials() {
+    const clientId = sessionStorage.getItem(this.storageKeys.clientId);
+    const clientSecret = sessionStorage.getItem(this.storageKeys.clientSecret);
+    return !!(clientId && clientSecret);
+  }
+
+  /**
+   * Check if user is authenticated (has valid token)
+   */
+  isAuthenticated() {
+    const token = sessionStorage.getItem(this.storageKeys.accessToken);
+    const expiresAt = sessionStorage.getItem(this.storageKeys.expiresAt);
+
+    if (!token) return false;
+    if (!expiresAt) return true; // No expiry info, assume valid
+
+    return Date.now() < parseInt(expiresAt);
+  }
+
+  /**
+   * Save API credentials (Client ID and Secret)
+   */
+  saveCredentials(clientId, clientSecret) {
+    sessionStorage.setItem(this.storageKeys.clientId, clientId);
+    sessionStorage.setItem(this.storageKeys.clientSecret, clientSecret);
+  }
+
+  /**
+   * Get stored credentials
+   */
+  getCredentials() {
+    return {
+      clientId: sessionStorage.getItem(this.storageKeys.clientId),
+      clientSecret: sessionStorage.getItem(this.storageKeys.clientSecret)
+    };
+  }
+
+  /**
+   * Start OAuth flow - redirect to Strava authorization
+   */
+  authorize() {
+    const { clientId } = this.getCredentials();
+    if (!clientId) {
+      throw new Error('Client ID not set. Please enter your credentials first.');
+    }
+
+    // Determine redirect URI based on environment
+    let redirectUri;
+
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      // Local development - use localhost with port
+      redirectUri = `http://localhost:${window.location.port}`;
+    } else {
+      // Production - use actual domain
+      redirectUri = window.location.origin + window.location.pathname;
+    }
+
+    const scope = 'read,activity:read_all';
+
+    const authUrl = `https://www.strava.com/oauth/authorize?` +
+      `client_id=${clientId}&` +
+      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+      `response_type=code&` +
+      `approval_prompt=auto&` +
+      `scope=${scope}`;
+
+    console.log('OAuth redirect URI:', redirectUri);
+    window.location.href = authUrl;
+  }
+
+  /**
+   * Handle OAuth callback - exchange code for token
+   */
+  async handleCallback() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    const error = urlParams.get('error');
+
+    if (error) {
+      throw new Error(`OAuth error: ${error}`);
+    }
+
+    if (!code) {
+      return false; // No callback in progress
+    }
+
+    const { clientId, clientSecret } = this.getCredentials();
+    if (!clientId || !clientSecret) {
+      throw new Error('Credentials not found in session');
+    }
+
+    // Exchange code for token
+    const response = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code: code,
+        grant_type: 'authorization_code'
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Token exchange failed: ${errorData.message || response.statusText}`);
+    }
+
+    const data = await response.json();
+
+    // Store tokens and athlete info
+    this.saveTokens(data);
+
+    // Clean URL (remove OAuth params)
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    return true;
+  }
+
+  /**
+   * Save OAuth tokens
+   */
+  saveTokens(data) {
+    sessionStorage.setItem(this.storageKeys.accessToken, data.access_token);
+    sessionStorage.setItem(this.storageKeys.refreshToken, data.refresh_token);
+    sessionStorage.setItem(this.storageKeys.expiresAt, (Date.now() + data.expires_in * 1000).toString());
+
+    if (data.athlete) {
+      sessionStorage.setItem(this.storageKeys.athlete, JSON.stringify(data.athlete));
+    }
+  }
+
+  /**
+   * Get current access token (refresh if needed)
+   */
+  async getAccessToken() {
+    // Check if token is still valid
+    if (this.isAuthenticated()) {
+      return sessionStorage.getItem(this.storageKeys.accessToken);
+    }
+
+    // Try to refresh token
+    const refreshToken = sessionStorage.getItem(this.storageKeys.refreshToken);
+    if (!refreshToken) {
+      throw new Error('No refresh token available. Please authorize again.');
+    }
+
+    return await this.refreshAccessToken();
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  async refreshAccessToken() {
+    const { clientId, clientSecret } = this.getCredentials();
+    const refreshToken = sessionStorage.getItem(this.storageKeys.refreshToken);
+
+    const response = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error('Token refresh failed. Please authorize again.');
+    }
+
+    const data = await response.json();
+    this.saveTokens(data);
+
+    return data.access_token;
+  }
+
+  /**
+   * Get athlete info
+   */
+  getAthlete() {
+    const athleteData = sessionStorage.getItem(this.storageKeys.athlete);
+    return athleteData ? JSON.parse(athleteData) : null;
+  }
+
+  /**
+   * Clear all stored data (logout)
+   */
+  clearAll() {
+    Object.values(this.storageKeys).forEach(key => {
+      sessionStorage.removeItem(key);
+    });
+  }
+
+  /**
+   * Get authorization status for UI
+   */
+  getStatus() {
+    return {
+      hasCredentials: this.hasCredentials(),
+      isAuthenticated: this.isAuthenticated(),
+      athlete: this.getAthlete()
+    };
+  }
+}

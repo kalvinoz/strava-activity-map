@@ -2,6 +2,13 @@ import L from 'leaflet';
 import { decodePolyline } from './utils/polyline.js';
 import { AnimationController } from './animation/AnimationController.js';
 import { GifExporter } from './export/GifExporter.js';
+import { StravaAuth } from './auth/StravaAuth.js';
+import { StravaAPI } from './api/StravaAPI.js';
+import { OnboardingUI } from './ui/OnboardingUI.js';
+
+// Initialize auth and API
+const auth = new StravaAuth();
+const api = new StravaAPI(auth);
 
 // Initialize map
 const map = L.map('map').setView([0, 0], 2);
@@ -62,36 +69,110 @@ const exportStatus = document.getElementById('export-status');
 const exportComplete = document.getElementById('export-complete');
 const downloadLink = document.getElementById('download-link');
 
-// Load activities from cache
-async function loadActivities() {
+// Main initialization
+async function init() {
+  // Add onboarding CSS
+  const style = document.createElement('style');
+  style.textContent = OnboardingUI.getCSS();
+  document.head.appendChild(style);
+
+  // Check if we're handling OAuth callback
+  if (window.location.search.includes('code=')) {
+    try {
+      loadingEl.classList.remove('hidden');
+      loadingEl.querySelector('div:last-child').textContent = 'Completing authorization...';
+
+      await auth.handleCallback();
+
+      // Show onboarding to fetch activities
+      showOnboarding();
+    } catch (error) {
+      console.error('OAuth callback error:', error);
+      alert(`Authorization failed: ${error.message}\n\nPlease try again.`);
+      auth.clearAll();
+      showOnboarding();
+    } finally {
+      loadingEl.classList.add('hidden');
+    }
+    return;
+  }
+
+  // Check if user is authenticated
+  const status = auth.getStatus();
+
+  if (status.isAuthenticated && api.hasCachedActivities()) {
+    // User has auth and cached data - load directly
+    loadCachedActivities();
+  } else if (status.isAuthenticated) {
+    // User has auth but no cached data - show onboarding to fetch
+    showOnboarding();
+  } else {
+    // No auth - show onboarding from start
+    showOnboarding();
+  }
+}
+
+// Show onboarding
+function showOnboarding() {
+  const onboarding = new OnboardingUI(auth, api, (activities) => {
+    handleActivitiesLoaded(activities);
+  });
+
+  // Determine which step to start at
+  const status = auth.getStatus();
+
+  onboarding.show();
+
+  if (status.isAuthenticated) {
+    // Skip to fetch step
+    onboarding.showStep(5);
+  } else if (status.hasCredentials) {
+    // Skip to authorization step
+    onboarding.showStep(3);
+  }
+  // Otherwise starts at step 1 (welcome)
+}
+
+// Load cached activities
+function loadCachedActivities() {
   try {
     loadingEl.classList.remove('hidden');
 
-    const response = await fetch('/data/activities/all_activities.json');
-    if (!response.ok) {
-      throw new Error('Failed to load activities. Please run: npm run fetch');
+    activities = api.getCachedActivities();
+
+    if (!activities || activities.length === 0) {
+      throw new Error('No cached activities found');
     }
 
-    activities = await response.json();
-
-    // Update stats
-    updateStats();
-
-    // Populate activity type filter
-    populateActivityTypes();
-
-    // Render activities
-    renderActivities();
-
-    // Initialize animation
-    initializeAnimation();
-
-    loadingEl.classList.add('hidden');
+    handleActivitiesLoaded(activities);
 
   } catch (error) {
+    console.error('Failed to load cached activities:', error);
     loadingEl.classList.add('hidden');
-    alert(`Error loading activities: ${error.message}\n\nPlease run: npm run fetch`);
+    showOnboarding();
   }
+}
+
+// Handle activities loaded (from cache or fresh fetch)
+function handleActivitiesLoaded(loadedActivities) {
+  activities = loadedActivities;
+
+  // Update stats
+  updateStats();
+
+  // Populate activity type filter
+  populateActivityTypes();
+
+  // Initialize animation
+  initializeAnimation();
+
+  // Hide loading
+  loadingEl.classList.add('hidden');
+
+  // Update load button text
+  loadBtn.textContent = 'Refresh Activities';
+
+  console.log(`Loaded ${activities.length} activities`);
 }
 
 function updateStats() {
@@ -108,6 +189,9 @@ function updateStats() {
 
 function populateActivityTypes() {
   const types = [...new Set(activities.map(a => a.type))].sort();
+
+  // Clear existing options (except "All Activities")
+  activityTypeSelect.innerHTML = '<option value="all">All Activities</option>';
 
   types.forEach(type => {
     const option = document.createElement('option');
@@ -251,7 +335,11 @@ function updateExportDimensions() {
 }
 
 // Event listeners
-loadBtn.addEventListener('click', loadActivities);
+loadBtn.addEventListener('click', () => {
+  // Re-fetch activities
+  showOnboarding();
+});
+
 activityTypeSelect.addEventListener('change', () => {
   if (activities.length > 0) {
     initializeAnimation();
@@ -388,5 +476,5 @@ exportBtn.addEventListener('click', async () => {
   }
 });
 
-// Initial load
-loadingEl.classList.add('hidden');
+// Start the app
+init();
