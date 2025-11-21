@@ -303,6 +303,7 @@ strava-activity-map/
 - **OpenStreetMap** & **CARTO** for map tiles
 - **Leaflet** for mapping library
 - **gif.js** for browser-based GIF encoding
+- Built with **[Claude Code](https://claude.ai/code)** - Anthropic's AI-powered coding assistant
 
 ---
 
