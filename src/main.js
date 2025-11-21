@@ -363,20 +363,13 @@ function getSelectedActivityTypes() {
   return Array.from(checkboxes).map(cb => cb.value);
 }
 
-// Get filtered activities based on type and privacy settings
+// Get filtered activities based on type
 function getFilteredActivities() {
   // Filter by activity type
   const selectedTypes = getSelectedActivityTypes();
-  let filtered = selectedTypes === 'all'
+  const filtered = selectedTypes === 'all'
     ? activities
     : activities.filter(a => selectedTypes.includes(a.type));
-
-  // Filter by privacy setting
-  const includePrivateCheckbox = document.getElementById('include-private-activities');
-  if (includePrivateCheckbox && !includePrivateCheckbox.checked) {
-    // Filter out private activities
-    filtered = filtered.filter(a => !a.private);
-  }
 
   return filtered;
 }
@@ -666,19 +659,6 @@ activityTypeAll.parentElement.addEventListener('click', (e) => {
     renderActivities();
   }
 });
-
-// "Include private activities" checkbox handler
-const includePrivateCheckbox = document.getElementById('include-private-activities');
-if (includePrivateCheckbox) {
-  includePrivateCheckbox.addEventListener('change', () => {
-    // Re-render with new privacy filter
-    if (animationController) {
-      initializeAnimation();
-    } else {
-      renderActivities();
-    }
-  });
-}
 
 // Animation controls
 playBtn.addEventListener('click', () => {

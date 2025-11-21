@@ -141,10 +141,15 @@ export class OnboardingUI {
               <small>These are stored only in your browser session</small>
             </div>
 
-            <div style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 12px; margin: 15px 0;">
-              <p style="margin: 0; font-size: 13px; color: #856404; line-height: 1.5;">
-                <i class="fas fa-info-circle" style="color: #ffc107;"></i> <strong>Note:</strong> If you grant access to private activities, they will be visible on the exported map. You'll choose which permissions to grant in the next step.
-              </p>
+            <div class="form-group" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px;">
+              <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 500;">
+                <input type="checkbox" id="include-private-activities-oauth" checked style="width: auto; cursor: pointer; margin: 0;">
+                <span><i class="fas fa-lock"></i> Include private activities</span>
+              </label>
+              <div style="font-size: 12px; color: #666; margin-top: 8px; margin-left: 28px;">
+                <strong>Checked:</strong> Request access to both public and private activities<br>
+                <strong>Unchecked:</strong> Request access to public activities only
+              </div>
             </div>
 
             <div id="credentials-error" class="error-message" style="display: none;"></div>
@@ -159,22 +164,8 @@ export class OnboardingUI {
           <div class="onboarding-step" data-step="4" style="display: none;">
             <h2>Step 3: Authorize with Strava</h2>
 
-            <div class="instructions">
-              <p><strong>Follow these steps:</strong></p>
-              <ol>
-                <li>Click the button below to open Strava authorization in a new tab</li>
-                <li><strong>Important:</strong> On the Strava page, make sure to check <strong>BOTH permission boxes</strong>:
-                  <ul style="margin: 8px 0;">
-                    <li>"View data about your activities"</li>
-                    <li>"View data about your private activities"</li>
-                  </ul>
-                </li>
-                <li>Click "Authorize" on the Strava page</li>
-                <li>You'll see an error page - <strong>that's expected!</strong></li>
-                <li>Copy the <strong>entire URL</strong> from your browser's address bar</li>
-                <li>Paste it below (we'll extract the code automatically)</li>
-              </ol>
-              <p><small><strong><i class="fas fa-info-circle" style="color: #2196f3;"></i> Privacy Note:</strong> Your activities are only shared with your own API - no one else can access them. You can control whether private activities appear on your map using the "Include private activities" checkbox in the app.</small></p>
+            <div id="auth-instructions" class="instructions">
+              <!-- Will be populated dynamically based on checkbox selection -->
             </div>
 
             <button class="btn-primary" onclick="onboarding.openAuthWindow()" style="margin-bottom: 20px;">
@@ -303,6 +294,7 @@ export class OnboardingUI {
   saveCredentialsAndShowAuth() {
     const clientId = document.getElementById('client-id').value.trim();
     const clientSecret = document.getElementById('client-secret').value.trim();
+    const includePrivate = document.getElementById('include-private-activities-oauth').checked;
     const errorEl = document.getElementById('credentials-error');
 
     // Validate
@@ -319,11 +311,59 @@ export class OnboardingUI {
       return;
     }
 
-    // Save credentials (request read_all by default, user can deny on Strava page)
-    this.auth.saveCredentials(clientId, clientSecret, 'read_all');
+    // Save credentials with appropriate scope based on checkbox
+    const scope = includePrivate ? 'read_all' : 'read';
+    this.auth.saveCredentials(clientId, clientSecret, scope);
+
+    // Populate auth instructions based on scope
+    this.populateAuthInstructions(includePrivate);
 
     // Show manual auth step
     this.showStep(4);
+  }
+
+  /**
+   * Populate authorization instructions based on private activities choice
+   */
+  populateAuthInstructions(includePrivate) {
+    const instructionsEl = document.getElementById('auth-instructions');
+
+    if (includePrivate) {
+      instructionsEl.innerHTML = `
+        <p><strong>Follow these steps:</strong></p>
+        <ol>
+          <li>Click the button below to open Strava authorization in a new tab</li>
+          <li><strong>Important:</strong> On the Strava page, check <strong>BOTH permission boxes</strong>:
+            <ul style="margin: 8px 0;">
+              <li>"View data about your activities"</li>
+              <li>"View data about your private activities"</li>
+            </ul>
+          </li>
+          <li>Click "Authorize" on the Strava page</li>
+          <li>You'll see an error page - <strong>that's expected!</strong></li>
+          <li>Copy the <strong>entire URL</strong> from your browser's address bar</li>
+          <li>Paste it below (we'll extract the code automatically)</li>
+        </ol>
+        <p><small><strong><i class="fas fa-info-circle" style="color: #2196f3;"></i> Privacy Note:</strong> Your activities are only shared with your own API - no one else can access them.</small></p>
+      `;
+    } else {
+      instructionsEl.innerHTML = `
+        <p><strong>Follow these steps:</strong></p>
+        <ol>
+          <li>Click the button below to open Strava authorization in a new tab</li>
+          <li><strong>Important:</strong> On the Strava page, check the <strong>"View data about your activities"</strong> permission box
+            <ul style="margin: 8px 0;">
+              <li>You can leave "View data about your private activities" unchecked</li>
+            </ul>
+          </li>
+          <li>Click "Authorize" on the Strava page</li>
+          <li>You'll see an error page - <strong>that's expected!</strong></li>
+          <li>Copy the <strong>entire URL</strong> from your browser's address bar</li>
+          <li>Paste it below (we'll extract the code automatically)</li>
+        </ol>
+        <p><small><strong><i class="fas fa-info-circle" style="color: #2196f3;"></i> Note:</strong> Only your public activities will be loaded.</small></p>
+      `;
+    }
   }
 
   /**
@@ -373,17 +413,18 @@ export class OnboardingUI {
         const scopeMatch = input.match(/scope=([^&]+)/);
         if (scopeMatch && scopeMatch[1]) {
           const scopeString = decodeURIComponent(scopeMatch[1]);
-          // Check if user granted read_all (private activities access) - this is REQUIRED
+
+          // Determine what scope user granted
           if (scopeString.includes('activity:read_all')) {
             grantedScope = 'read_all';
+          } else if (scopeString.includes('activity:read')) {
+            grantedScope = 'read';
           } else {
-            // User didn't grant activity:read_all - this won't work with Strava's API
+            // User didn't grant any activity access
             errorEl.innerHTML = `
               <strong>Missing Required Permission</strong><br><br>
-              You need to grant access to <strong>private activities</strong> for this app to work.<br><br>
-              <strong>Important:</strong> Your activities are only shared with your own API - no one else can see them.
-              You can control whether private activities appear on your map using the "Include private activities" checkbox in the app.<br><br>
-              Please click "Open Strava Authorization" again and make sure to check <strong>both</strong> permission boxes on Strava's page.
+              You need to grant access to view activities for this app to work.<br><br>
+              Please click "Open Strava Authorization" again and make sure to check the <strong>"View data about your activities"</strong> permission box on Strava's page.
             `;
             errorEl.style.display = 'block';
             return;
@@ -423,18 +464,18 @@ export class OnboardingUI {
    * Initialize step 5 (fetch activities)
    */
   initializeStep5() {
-    // Show athlete info and scope granted
+    // Show athlete info and what will be loaded
     const athlete = this.auth.getAthlete();
     const scope = sessionStorage.getItem(this.auth.storageKeys.scope);
     const hasPrivateAccess = scope === 'read_all';
 
     if (athlete) {
-      const scopeMessage = hasPrivateAccess
-        ? '<i class="fas fa-lock-open" style="color: #4caf50;"></i> You granted access to <strong>private activities</strong>'
-        : '<i class="fas fa-lock" style="color: #666;"></i> You granted access to <strong>public activities only</strong>';
+      const loadingMessage = hasPrivateAccess
+        ? '<i class="fas fa-lock-open" style="color: #4caf50;"></i> Loading <strong>public and private activities</strong>'
+        : '<i class="fas fa-lock" style="color: #666;"></i> Loading <strong>only public activities</strong>';
 
       document.getElementById('athlete-welcome').innerHTML =
-        `Welcome, ${athlete.firstname} ${athlete.lastname}! <i class="fas fa-hand-wave" style="color: #fc4c02;"></i><br><small style="color: #666;">${scopeMessage}</small>`;
+        `Welcome, ${athlete.firstname} ${athlete.lastname}! <i class="fas fa-hand-wave" style="color: #fc4c02;"></i><br><small style="color: #666;">${loadingMessage}</small>`;
     }
 
     // Check for cached activities
