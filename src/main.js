@@ -109,7 +109,38 @@ function getDominantActivityColor() {
 // Get selected corner for date overlay
 function getSelectedDateCorner() {
   const selectedOption = document.querySelector('.corner-option.selected');
-  return selectedOption ? selectedOption.getAttribute('data-corner') : 'top-left';
+  return selectedOption ? selectedOption.getAttribute('data-corner') : 'bottom-right';
+}
+
+// Format date as "January 1983"
+function formatDateOverlay(date) {
+  if (!date) return '';
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${month} ${year}`;
+}
+
+// Update the date preview overlay on the map
+function updateDatePreview() {
+  if (!includeDateOverlay.checked || !animationController || !animationController.currentTime) {
+    datePreviewOverlay.classList.remove('visible');
+    return;
+  }
+
+  // Show the preview
+  datePreviewOverlay.classList.add('visible');
+
+  // Update the date text
+  datePreviewOverlay.textContent = formatDateOverlay(animationController.currentTime);
+
+  // Update the corner position
+  const corner = getSelectedDateCorner();
+  datePreviewOverlay.className = `visible ${corner}`;
+
+  // Update the color to match dominant activity
+  const color = getDominantActivityColor();
+  datePreviewOverlay.style.color = color;
 }
 
 // DOM elements
@@ -145,6 +176,7 @@ const exportHeight = document.getElementById('export-height');
 const exportFps = document.getElementById('export-fps');
 const includeDateOverlay = document.getElementById('include-date-overlay');
 const dateCornerSelector = document.getElementById('date-corner-selector');
+const datePreviewOverlay = document.getElementById('date-preview-overlay');
 const sizeEstimateValue = document.getElementById('size-estimate-value');
 const exportProgress = document.getElementById('export-progress');
 const progressFill = document.getElementById('progress-fill');
@@ -390,6 +422,9 @@ function updateStats() {
   statCount.textContent = filteredActivities.length;
   statDistance.textContent = (stats.totalDistance / 1000).toFixed(2);
   statTypes.textContent = stats.types.size;
+
+  // Update date preview color (in case dominant activity changed)
+  updateDatePreview();
 }
 
 function populateActivityTypes() {
@@ -715,6 +750,7 @@ function formatDateForInput(date) {
 function updateTimeDisplay(date) {
   if (!date) {
     timeDisplay.textContent = '--/--/----';
+    updateDatePreview(); // Update preview even when no date
     return;
   }
   timeDisplay.textContent = date.toLocaleDateString('en-US', {
@@ -722,6 +758,7 @@ function updateTimeDisplay(date) {
     month: 'short',
     day: 'numeric'
   });
+  updateDatePreview(); // Update the date preview on the map
 }
 
 function updateTimelineSlider() {
@@ -1421,6 +1458,7 @@ exportEndDate.addEventListener('change', scheduleURLUpdate);
 // Date overlay controls
 includeDateOverlay.addEventListener('change', () => {
   dateCornerSelector.style.display = includeDateOverlay.checked ? 'block' : 'none';
+  updateDatePreview();
   scheduleURLUpdate();
 });
 
@@ -1429,6 +1467,7 @@ document.querySelectorAll('.corner-option').forEach(option => {
   option.addEventListener('click', () => {
     document.querySelectorAll('.corner-option').forEach(opt => opt.classList.remove('selected'));
     option.classList.add('selected');
+    updateDatePreview();
     scheduleURLUpdate();
   });
 });

@@ -562,14 +562,13 @@ export class GifExporter {
   }
 
   /**
-   * Format date as "27 May 1983"
+   * Format date as "January 1983"
    */
   _formatDate(date) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const day = date.getDate();
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const month = months[date.getMonth()];
     const year = date.getFullYear();
-    return `${day} ${month} ${year}`;
+    return `${month} ${year}`;
   }
 
   /**
