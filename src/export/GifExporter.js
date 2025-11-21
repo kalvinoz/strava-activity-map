@@ -158,6 +158,15 @@ export class GifExporter {
   async _captureBasemap(width, height, captureBox = null) {
     const mapContainer = this.map.getContainer();
 
+    // Temporarily hide capture box UI elements
+    const captureBoxEl = document.getElementById('capture-box');
+    const captureOverlay = document.getElementById('capture-overlay');
+    const originalBoxDisplay = captureBoxEl ? captureBoxEl.style.display : null;
+    const originalOverlayDisplay = captureOverlay ? captureOverlay.style.display : null;
+
+    if (captureBoxEl) captureBoxEl.style.display = 'none';
+    if (captureOverlay) captureOverlay.style.display = 'none';
+
     // Use html2canvas to capture the map tiles
     const fullCanvas = await html2canvas(mapContainer, {
       scale: 1,
@@ -165,6 +174,10 @@ export class GifExporter {
       logging: false,
       backgroundColor: '#f5f5f5'
     });
+
+    // Restore capture box UI elements
+    if (captureBoxEl && originalBoxDisplay !== null) captureBoxEl.style.display = originalBoxDisplay;
+    if (captureOverlay && originalOverlayDisplay !== null) captureOverlay.style.display = originalOverlayDisplay;
 
     // If capture box specified, crop to that area
     if (captureBox) {
