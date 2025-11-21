@@ -1252,6 +1252,7 @@ exportBtn.addEventListener('click', async () => {
     exportProgress.style.display = 'block';
     exportBtn.disabled = true;
     exportBtn.textContent = 'Producing...';
+    saveGifBtn.style.display = 'none'; // Hide download button until new GIF is ready
 
     // Set up progress callback
     gifExporter.onProgress = (percent, message) => {
@@ -1296,6 +1297,7 @@ exportBtn.addEventListener('click', async () => {
     console.error('Export failed:', error);
     alert(`Export failed: ${error.message}`);
     exportProgress.style.display = 'none';
+    saveGifBtn.style.display = 'none'; // Hide download button on error
     exportBtn.disabled = false;
     exportBtn.textContent = 'Produce GIF';
     exportBtn.style.background = ''; // Reset background
