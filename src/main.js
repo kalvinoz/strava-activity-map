@@ -40,8 +40,8 @@ let captureBox = {
 
 // Color palette for selection
 const COLOR_PALETTE = [
-  { name: 'Strava Orange', value: '#fc4c02' },
-  { name: 'Strava Blue', value: '#0066cc' },
+  { name: 'Orange', value: '#fc4c02' },
+  { name: 'Blue', value: '#0066cc' },
   { name: 'Cyan', value: '#00cccc' },
   { name: 'Green', value: '#66cc00' },
   { name: 'Brown', value: '#996600' },
@@ -53,7 +53,7 @@ const COLOR_PALETTE = [
   { name: 'Teal', value: '#00a8cc' },
   { name: 'Navy', value: '#006994' },
   { name: 'Forest', value: '#2d5016' },
-  { name: 'Orange', value: '#ff6b35' },
+  { name: 'Light Orange', value: '#ff6b35' },
   { name: 'Gray', value: '#888888' },
   { name: 'Black', value: '#1a1a1a' }
 ];
