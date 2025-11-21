@@ -706,6 +706,18 @@ function setupCaptureBoxResize() {
       // This preserves aspect ratio locking for square/vertical/horizontal modes
       if (captureBox.ratio === 'max') {
         captureBox.ratio = 'free';
+
+        // Update UI to reflect the mode change
+        document.querySelectorAll('.aspect-ratio-pill').forEach(pill => {
+          const pillRatio = pill.querySelector('input').value;
+          if (pillRatio === 'free') {
+            pill.querySelector('input').checked = true;
+            pill.classList.add('selected');
+          } else {
+            pill.querySelector('input').checked = false;
+            pill.classList.remove('selected');
+          }
+        });
       }
     });
   });
