@@ -631,8 +631,11 @@ function setupCaptureBoxResize() {
       // Disable map dragging
       map.dragging.disable();
 
-      // Set to free mode when manually resizing
-      captureBox.ratio = 'free';
+      // Only set to free mode if currently in max mode
+      // This preserves aspect ratio locking for square/vertical/horizontal modes
+      if (captureBox.ratio === 'max') {
+        captureBox.ratio = 'free';
+      }
     });
   });
 
@@ -705,8 +708,7 @@ function setupCaptureBoxResize() {
     // Change cursor to move
     document.body.style.cursor = 'move';
 
-    // Set to free mode when manually dragging
-    captureBox.ratio = 'free';
+    // Dragging doesn't change the ratio mode - aspect ratio is preserved
   });
 
   document.addEventListener('mousemove', (e) => {
