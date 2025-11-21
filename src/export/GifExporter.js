@@ -335,8 +335,25 @@ export class GifExporter {
   }
 
   /**
-   * Capture heatmap frame showing ALL activities with equal opacity
+   * Calculate dynamic opacity based on activity density in capture area
+   */
+  _calculateHeatmapOpacity(activityCount) {
+    // Few activities (1-20): high opacity (0.6-0.4)
+    // Medium activities (20-100): medium opacity (0.4-0.25)
+    // Many activities (100+): low opacity (0.25-0.15)
+    if (activityCount <= 20) {
+      return Math.max(0.4, 0.6 - (activityCount / 20) * 0.2);
+    } else if (activityCount <= 100) {
+      return Math.max(0.25, 0.4 - ((activityCount - 20) / 80) * 0.15);
+    } else {
+      return Math.max(0.15, 0.25 - ((activityCount - 100) / 200) * 0.1);
+    }
+  }
+
+  /**
+   * Capture heatmap frame showing ALL activities with dynamic opacity
    * Bypasses the maxVisibleActivities limit to show complete route coverage
+   * Uses same opacity calculation as screen animation for consistency
    * @param {Date} currentTime - Current animation time for date overlay
    * @param {Object} dateOverlay - Date overlay settings { enabled, corner, color }
    */
@@ -358,7 +375,22 @@ export class GifExporter {
       ctx.fillRect(0, 0, width, height);
     }
 
-    // Draw ALL activities with equal opacity
+    // Count activities that intersect with capture bounds
+    let activitiesInBounds = 0;
+    activities.forEach((activity) => {
+      const polylineStr = activity.map?.summary_polyline;
+      if (!polylineStr) return;
+      const coords = this._decodePolyline(polylineStr);
+      // Check if any point is within bounds
+      const hasPointInBounds = coords.some(([lat, lng]) => bounds.contains([lat, lng]));
+      if (hasPointInBounds) activitiesInBounds++;
+    });
+
+    // Calculate dynamic opacity based on activity density
+    const dynamicOpacity = this._calculateHeatmapOpacity(activitiesInBounds);
+    console.log(`Dynamic opacity for ${activitiesInBounds} activities in bounds: ${dynamicOpacity}`);
+
+    // Draw ALL activities with dynamic opacity for better heatmap effect
     let drawnCount = 0;
     activities.forEach((activity) => {
       const polylineStr = activity.map?.summary_polyline;
@@ -381,11 +413,11 @@ export class GifExporter {
         ctx.lineTo(points[i].x, points[i].y);
       }
 
-      // Equal style for all routes - low opacity for additive overlap effect
+      // Use dynamic opacity based on activity density
       const baseColor = this._getActivityColor(activity.type);
       ctx.strokeStyle = baseColor;
       ctx.lineWidth = 2.5;
-      ctx.globalAlpha = 0.3;
+      ctx.globalAlpha = dynamicOpacity;
       ctx.stroke();
       drawnCount++;
     });
