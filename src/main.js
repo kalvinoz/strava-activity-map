@@ -118,10 +118,10 @@ function formatDateOverlay(date, format = null) {
 
   // Use current selection if no format specified
   if (!format) {
-    format = dateFormatSelect ? dateFormatSelect.value : 'DD MMMM YYYY';
+    format = dateFormatSelect ? dateFormatSelect.value : 'D MMMM YYYY';
   }
 
-  const day = String(date.getDate()).padStart(2, '0');
+  const day = date.getDate(); // No leading zero
   const monthIndex = date.getMonth();
   const year = date.getFullYear();
   const month2Digit = String(monthIndex + 1).padStart(2, '0');
@@ -130,12 +130,17 @@ function formatDateOverlay(date, format = null) {
   const monthsFull = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
   switch (format) {
-    case 'DD-MM-YYYY':
-      return `${day}-${month2Digit}-${year}`;
-    case 'DD MMM YYYY':
+    case 'YYYY-MM-DD':
+      const day2Digit = String(day).padStart(2, '0');
+      return `${year}-${month2Digit}-${day2Digit}`;
+    case 'D MMM YYYY':
       return `${day} ${monthsShort[monthIndex]} ${year}`;
-    case 'DD MMMM YYYY':
+    case 'D MMMM YYYY':
       return `${day} ${monthsFull[monthIndex]} ${year}`;
+    case 'MMM YYYY':
+      return `${monthsShort[monthIndex]} ${year}`;
+    case 'MMMM YYYY':
+      return `${monthsFull[monthIndex]} ${year}`;
     default:
       return `${day} ${monthsFull[monthIndex]} ${year}`;
   }
@@ -146,7 +151,7 @@ function updateDateFormatOptions() {
   if (!animationController || !animationController.currentTime || !dateFormatSelect) return;
 
   const exampleDate = animationController.currentTime;
-  const formats = ['DD-MM-YYYY', 'DD MMM YYYY', 'DD MMMM YYYY'];
+  const formats = ['YYYY-MM-DD', 'D MMM YYYY', 'D MMMM YYYY', 'MMM YYYY', 'MMMM YYYY'];
   const currentValue = dateFormatSelect.value;
 
   // Update each option with an example
@@ -1796,7 +1801,7 @@ function restoreStateFromURL() {
 
     if (params.has('dateFormat')) {
       const format = params.get('dateFormat');
-      if (['DD-MM-YYYY', 'DD MMM YYYY', 'DD MMMM YYYY'].includes(format)) {
+      if (['YYYY-MM-DD', 'D MMM YYYY', 'D MMMM YYYY', 'MMM YYYY', 'MMMM YYYY'].includes(format)) {
         dateFormatSelect.value = format;
       }
     }

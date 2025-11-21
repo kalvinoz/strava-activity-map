@@ -564,10 +564,10 @@ export class GifExporter {
   /**
    * Format date based on format string
    */
-  _formatDate(date, format = 'DD MMMM YYYY') {
+  _formatDate(date, format = 'D MMMM YYYY') {
     if (!date) return '';
 
-    const day = String(date.getDate()).padStart(2, '0');
+    const day = date.getDate(); // No leading zero
     const monthIndex = date.getMonth();
     const year = date.getFullYear();
     const month2Digit = String(monthIndex + 1).padStart(2, '0');
@@ -576,12 +576,17 @@ export class GifExporter {
     const monthsFull = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
     switch (format) {
-      case 'DD-MM-YYYY':
-        return `${day}-${month2Digit}-${year}`;
-      case 'DD MMM YYYY':
+      case 'YYYY-MM-DD':
+        const day2Digit = String(day).padStart(2, '0');
+        return `${year}-${month2Digit}-${day2Digit}`;
+      case 'D MMM YYYY':
         return `${day} ${monthsShort[monthIndex]} ${year}`;
-      case 'DD MMMM YYYY':
+      case 'D MMMM YYYY':
         return `${day} ${monthsFull[monthIndex]} ${year}`;
+      case 'MMM YYYY':
+        return `${monthsShort[monthIndex]} ${year}`;
+      case 'MMMM YYYY':
+        return `${monthsFull[monthIndex]} ${year}`;
       default:
         return `${day} ${monthsFull[monthIndex]} ${year}`;
     }
