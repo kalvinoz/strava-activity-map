@@ -148,8 +148,9 @@ async function init() {
   // Check if user is authenticated
   const status = auth.getStatus();
 
-  if (status.isAuthenticated && api.hasCachedActivities()) {
-    // User has auth and cached data - load directly
+  // Prioritize cached activities - load them regardless of auth status
+  // User can refresh later if they want new data
+  if (api.hasCachedActivities()) {
     loadCachedActivities();
   } else if (status.isAuthenticated) {
     // User has auth but no cached data - show onboarding to fetch
@@ -705,6 +706,18 @@ function setupCaptureBoxResize() {
       // This preserves aspect ratio locking for square/vertical/horizontal modes
       if (captureBox.ratio === 'max') {
         captureBox.ratio = 'free';
+
+        // Update UI to reflect the mode change
+        document.querySelectorAll('.aspect-ratio-pill').forEach(pill => {
+          const pillRatio = pill.querySelector('input').value;
+          if (pillRatio === 'free') {
+            pill.querySelector('input').checked = true;
+            pill.classList.add('selected');
+          } else {
+            pill.querySelector('input').checked = false;
+            pill.classList.remove('selected');
+          }
+        });
       }
     });
   });
