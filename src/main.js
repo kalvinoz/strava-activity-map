@@ -633,12 +633,57 @@ function setupCaptureBoxResize() {
     });
   });
 
-  // Handle drag from box body
+  // Update cursor based on mouse position over the box
+  captureBoxEl.addEventListener('mousemove', (e) => {
+    // Skip if currently resizing or dragging
+    if (isResizing || isDragging) return;
+
+    // Don't change cursor for handles
+    if (e.target.classList.contains('capture-box-handle')) return;
+
+    const rect = captureBoxEl.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    // Define edge threshold
+    const edgeThreshold = 15;
+    const isNearLeftEdge = mouseX < edgeThreshold;
+    const isNearRightEdge = mouseX > rect.width - edgeThreshold;
+    const isNearTopEdge = mouseY < edgeThreshold;
+    const isNearBottomEdge = mouseY > rect.height - edgeThreshold;
+
+    const isNearEdge = isNearLeftEdge || isNearRightEdge || isNearTopEdge || isNearBottomEdge;
+
+    // Change cursor based on position
+    captureBoxEl.style.cursor = isNearEdge ? 'move' : 'default';
+  });
+
+  // Handle drag from box edges only
   captureBoxEl.addEventListener('mousedown', (e) => {
     // Don't start dragging if clicking on a handle
     if (e.target.classList.contains('capture-box-handle')) return;
     // Don't start dragging if clicking on the label
     if (e.target.id === 'capture-box-label' || e.target.closest('#capture-box-label')) return;
+
+    // Calculate relative click position within the box
+    const rect = captureBoxEl.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    // Define edge threshold - only allow dragging from edges (15px from border)
+    const edgeThreshold = 15;
+    const isNearLeftEdge = clickX < edgeThreshold;
+    const isNearRightEdge = clickX > rect.width - edgeThreshold;
+    const isNearTopEdge = clickY < edgeThreshold;
+    const isNearBottomEdge = clickY > rect.height - edgeThreshold;
+
+    // Only start dragging if click is near an edge
+    const isNearEdge = isNearLeftEdge || isNearRightEdge || isNearTopEdge || isNearBottomEdge;
+
+    if (!isNearEdge) {
+      // Click is in the middle - don't intercept, let map handle it
+      return;
+    }
 
     e.preventDefault();
     e.stopPropagation();
@@ -655,7 +700,7 @@ function setupCaptureBoxResize() {
     map.dragging.disable();
 
     // Change cursor to move
-    captureBoxEl.style.cursor = 'move';
+    document.body.style.cursor = 'move';
 
     // Set to free mode when manually dragging
     captureBox.ratio = 'free';
@@ -761,6 +806,7 @@ function setupCaptureBoxResize() {
 
       // Reset cursor
       captureBoxEl.style.cursor = '';
+      document.body.style.cursor = '';
 
       // Re-enable map dragging
       map.dragging.enable();
@@ -1044,7 +1090,7 @@ exportBtn.addEventListener('click', async () => {
     exportBtn.style.background = '#999999';
 
     // Show Save GIF button
-    saveGifBtn.style.display = 'inline-block';
+    saveGifBtn.style.display = 'flex';
 
     console.log(`GIF ready! Size: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
 

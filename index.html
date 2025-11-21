@@ -312,7 +312,7 @@
 
     #capture-overlay.active {
       display: block;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 0 0 9999px rgba(100, 100, 100, 0.7);
     }
 
     /* Capture area box */
@@ -321,9 +321,13 @@
       border: 3px dashed #fc4c02;
       background: transparent;
       pointer-events: auto;
-      cursor: move;
+      cursor: default;
       z-index: 999;
       display: none;
+    }
+
+    #capture-box:hover {
+      cursor: default;
     }
 
     #capture-box.active {
@@ -633,10 +637,12 @@
         </div>
       </div>
 
-      <button id="export-btn">Produce GIF</button>
-      <button id="save-gif-btn" style="display: none; background: #fc4c02; margin-left: 10px;">
-        <i class="fas fa-save"></i> Save GIF
-      </button>
+      <div style="display: flex; gap: 10px; align-items: center; margin-top: 15px;">
+        <button id="export-btn" style="flex: 1;">Produce GIF</button>
+        <button id="save-gif-btn" style="display: none; background: #fc4c02; flex: 1; justify-content: center; align-items: center; gap: 8px;">
+          <i class="fas fa-save"></i> Save GIF
+        </button>
+      </div>
     </details>
 
     <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd; font-size: 10px; text-align: center; color: #999;">
