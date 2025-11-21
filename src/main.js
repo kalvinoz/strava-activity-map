@@ -79,6 +79,7 @@ function getActivityColors() {
 const loadingEl = document.getElementById('loading');
 const loadBtn = document.getElementById('load-btn');
 const refreshActivitiesBtn = document.getElementById('refresh-activities-btn');
+const logoutBtn = document.getElementById('logout-btn');
 const activityTypeAll = document.getElementById('activity-type-all');
 const activityTypeList = document.getElementById('activity-type-list');
 const statCount = document.getElementById('stat-count');
@@ -221,8 +222,9 @@ function handleActivitiesLoaded(loadedActivities) {
   // Hide loading
   loadingEl.classList.add('hidden');
 
-  // Show refresh button and hide load button
+  // Show refresh and logout buttons, hide load button
   refreshActivitiesBtn.style.display = 'inline-block';
+  logoutBtn.style.display = 'inline-block';
   loadBtn.style.display = 'none';
 
   // Show instructions popup
@@ -1035,6 +1037,24 @@ refreshActivitiesBtn.addEventListener('click', () => {
   showOnboarding();
 });
 
+logoutBtn.addEventListener('click', () => {
+  // Show logout confirmation dialog
+  document.getElementById('logout-confirmation-popup').classList.add('active');
+});
+
+// Logout confirmation function (global for onclick handler)
+window.confirmLogout = () => {
+  // Clear all auth and cache data
+  stravaAuth.clearAll();
+  stravaAPI.clearCache();
+
+  // Hide confirmation popup
+  document.getElementById('logout-confirmation-popup').classList.remove('active');
+
+  // Reload the page to restart onboarding
+  window.location.reload();
+};
+
 // "All Activities" pill handler
 activityTypeAll.parentElement.addEventListener('click', (e) => {
   e.preventDefault();
@@ -1157,16 +1177,17 @@ function updateGifSizeEstimate() {
   const frameCount = Math.floor(duration * fps) + 1;
 
   // Estimate size per frame based on resolution
-  // GIF compression varies, but for map data with routes:
-  // - Base overhead: ~1KB per frame
-  // - Pixel data: roughly 0.015-0.025 bytes per pixel (after compression)
-  // - Quality factor: we use quality=10 (good quality = larger file)
+  // GIF compression is limited for complex map data with many colors:
+  // - Map tiles and routes have high color variance, reducing compression effectiveness
+  // - Quality=10 setting produces larger files
+  // - Empirically tested: ~0.7 bytes per pixel for typical map content
   const pixels = width * height;
-  const bytesPerPixel = 0.02; // Conservative estimate for quality=10
-  const frameOverhead = 1024; // 1KB overhead per frame
+  const bytesPerPixel = 0.7; // Realistic estimate based on actual GIF output
+  const frameOverhead = 2048; // Frame header and metadata
+  const globalOverhead = 50000; // GIF header, color tables, etc.
 
   const estimatedBytesPerFrame = (pixels * bytesPerPixel) + frameOverhead;
-  const estimatedTotalBytes = estimatedBytesPerFrame * frameCount;
+  const estimatedTotalBytes = (estimatedBytesPerFrame * frameCount) + globalOverhead;
 
   // Convert to human-readable format
   const estimatedMB = estimatedTotalBytes / (1024 * 1024);
@@ -1231,6 +1252,7 @@ exportBtn.addEventListener('click', async () => {
     exportProgress.style.display = 'block';
     exportBtn.disabled = true;
     exportBtn.textContent = 'Producing...';
+    saveGifBtn.style.display = 'none'; // Hide download button until new GIF is ready
 
     // Set up progress callback
     gifExporter.onProgress = (percent, message) => {
@@ -1275,6 +1297,7 @@ exportBtn.addEventListener('click', async () => {
     console.error('Export failed:', error);
     alert(`Export failed: ${error.message}`);
     exportProgress.style.display = 'none';
+    saveGifBtn.style.display = 'none'; // Hide download button on error
     exportBtn.disabled = false;
     exportBtn.textContent = 'Produce GIF';
     exportBtn.style.background = ''; // Reset background

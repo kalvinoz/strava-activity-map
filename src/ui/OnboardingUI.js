@@ -71,19 +71,14 @@ export class OnboardingUI {
           <!-- Step 1: Welcome & Privacy -->
           <div class="onboarding-step" data-step="1">
             <h2>Welcome! <i class="fas fa-hand-wave"></i></h2>
-            <p>Visualize your Strava activities on a map and export them as animated GIFs.</p>
 
             <div class="privacy-notice">
               <h3><i class="fas fa-lock"></i> Privacy First</h3>
               <ul>
-                <li><i class="fas fa-check-circle" style="color: #0066cc;"></i> <strong>100% client-side</strong> - runs in your browser, no servers</li>
-                <li><i class="fas fa-check-circle" style="color: #0066cc;"></i> <strong>Your data stays local</strong> - stored only in your browser</li>
-                <li><i class="fas fa-check-circle" style="color: #0066cc;"></i> <strong>Your own API</strong> - use your own credentials and quota</li>
+                <li><i class="fas fa-check-circle" style="color: #0066cc;"></i> <strong>100% client-side</strong> - your data stays in your browser</li>
+                <li><i class="fas fa-check-circle" style="color: #0066cc;"></i> <strong>Your own API credentials</strong> - use your Strava quota</li>
               </ul>
-            </div>
-
-            <div class="disclaimer-notice">
-              <p><small>Not affiliated with Strava, Inc. Independent open-source tool.</small></p>
+              <p><small>Not affiliated with Strava, Inc.</small></p>
             </div>
 
             <button class="btn-primary" onclick="onboarding.nextStep()">Get Started</button>
@@ -91,13 +86,12 @@ export class OnboardingUI {
 
           <!-- Step 2: Create Strava API App -->
           <div class="onboarding-step" data-step="2" style="display: none;">
-            <h2>Step 1: Create Strava API Application</h2>
-            <p>Create your API application to get credentials. <small>(~1 minute)</small></p>
+            <h2>Step 1: Create API Application</h2>
 
             <div class="instructions">
               <ol>
                 <li>Go to <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener">Strava API Settings</a></li>
-                <li>Fill in "My API Application" form:
+                <li>Fill in the form:
                   <ul>
                     <li><strong>Application Name:</strong> "My Activity Map"</li>
                     <li><strong>Category:</strong> "Visualizer"</li>
@@ -109,7 +103,7 @@ export class OnboardingUI {
                     </li>
                   </ul>
                 </li>
-                <li>Click "Create" and copy your <strong>Client ID</strong> and <strong>Client Secret</strong></li>
+                <li>Click "Create" and copy <strong>Client ID</strong> & <strong>Client Secret</strong></li>
               </ol>
             </div>
 
@@ -121,8 +115,7 @@ export class OnboardingUI {
 
           <!-- Step 3: Enter Credentials -->
           <div class="onboarding-step" data-step="3" style="display: none;">
-            <h2>Step 2: Enter Your API Credentials</h2>
-            <p>Copy your Client ID and Client Secret from the Strava API page.</p>
+            <h2>Step 2: Enter Credentials</h2>
 
             <div class="form-group">
               <label for="client-id">Client ID</label>
@@ -139,9 +132,6 @@ export class OnboardingUI {
                 <input type="checkbox" id="include-private-activities-oauth" checked style="width: auto; cursor: pointer; margin: 0;">
                 <span><i class="fas fa-lock"></i> Include private activities</span>
               </label>
-              <small style="display: block; margin-top: 8px; margin-left: 28px; color: #666;">
-                Check to include both public and private activities
-              </small>
             </div>
 
             <div id="credentials-error" class="error-message" style="display: none;"></div>
@@ -183,18 +173,15 @@ export class OnboardingUI {
 
           <!-- Step 5: Fetch Activities -->
           <div class="onboarding-step" data-step="5" style="display: none;">
-            <h2>Step 3: Load Your Activities</h2>
+            <h2>Step 4: Load Activities</h2>
             <p id="athlete-welcome"></p>
 
             <div class="cache-info" id="cache-info" style="display: none;">
-              <p><i class="fas fa-check-circle" style="color: #4caf50;"></i> Cached activities: <strong id="cached-count">0</strong></p>
-              <p><small>Cached <span id="cache-age">0</span> minutes ago</small></p>
+              <p><i class="fas fa-check-circle" style="color: #4caf50;"></i> <strong id="cached-count">0</strong> activities cached <small>(<span id="cache-age">0</span>m ago)</small></p>
               <button class="btn-secondary" onclick="onboarding.clearCache()">Clear & Re-fetch</button>
             </div>
 
             <div class="fetch-controls" id="fetch-controls">
-              <p>Fetch your activities from Strava. <small>(May take a minute)</small></p>
-
               <div class="progress-container" id="fetch-progress" style="display: none;">
                 <div class="spinner"></div>
                 <p>Fetching: <strong id="fetch-count">0</strong> activities</p>
@@ -326,23 +313,18 @@ export class OnboardingUI {
     if (includePrivate) {
       instructionsEl.innerHTML = `
         <ol>
-          <li>Click the button below to open Strava authorization</li>
-          <li><strong>Check BOTH permission boxes</strong> on Strava's page</li>
-          <li>Click "Authorize"</li>
-          <li>You'll see an error page - <strong>this is expected!</strong></li>
-          <li>Copy the entire URL from your address bar and paste below</li>
+          <li>Click button below → <strong>check BOTH permissions</strong> → Authorize</li>
+          <li>You'll see an error page (this is normal)</li>
+          <li>Copy the URL from address bar and paste below</li>
         </ol>
       `;
     } else {
       instructionsEl.innerHTML = `
         <ol>
-          <li>Click the button below to open Strava authorization</li>
-          <li><strong>Check "View activities"</strong> permission on Strava's page</li>
-          <li>Click "Authorize"</li>
-          <li>You'll see an error page - <strong>this is expected!</strong></li>
-          <li>Copy the entire URL from your address bar and paste below</li>
+          <li>Click button below → <strong>check "View activities"</strong> → Authorize</li>
+          <li>You'll see an error page (this is normal)</li>
+          <li>Copy the URL from address bar and paste below</li>
         </ol>
-        <p><small>Only public activities will be loaded.</small></p>
       `;
     }
   }
