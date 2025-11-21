@@ -105,6 +105,7 @@ const exportDuration = document.getElementById('export-duration');
 const exportWidth = document.getElementById('export-width');
 const exportHeight = document.getElementById('export-height');
 const exportFps = document.getElementById('export-fps');
+const sizeEstimateValue = document.getElementById('size-estimate-value');
 const exportProgress = document.getElementById('export-progress');
 const progressFill = document.getElementById('progress-fill');
 const exportStatus = document.getElementById('export-status');
@@ -888,6 +889,9 @@ function setupCaptureBoxResize() {
     exportWidth.value = Math.round(newWidth);
     exportHeight.value = Math.round(newHeight);
 
+    // Update size estimate
+    updateGifSizeEstimate();
+
     // Store bounds
     captureBox.bounds = {
       left: newLeft,
@@ -1001,6 +1005,9 @@ function updateCaptureBox(ratio) {
   // Update export dimensions to match capture box
   exportWidth.value = Math.round(width);
   exportHeight.value = Math.round(height);
+
+  // Update size estimate
+  updateGifSizeEstimate();
 }
 
 // Event listeners
@@ -1124,6 +1131,60 @@ exportHeight.addEventListener('input', () => {
   const aspectRatio = parseInt(captureBoxEl.style.width) / parseInt(captureBoxEl.style.height);
   exportWidth.value = Math.round(newHeight * aspectRatio);
 });
+
+// Estimate GIF file size based on settings
+function updateGifSizeEstimate() {
+  const width = parseInt(exportWidth.value);
+  const height = parseInt(exportHeight.value);
+  const duration = parseInt(exportDuration.value);
+  const fps = parseInt(exportFps.value);
+
+  // Calculate number of frames (including final heatmap frame)
+  const frameCount = Math.floor(duration * fps) + 1;
+
+  // Estimate size per frame based on resolution
+  // GIF compression varies, but for map data with routes:
+  // - Base overhead: ~1KB per frame
+  // - Pixel data: roughly 0.015-0.025 bytes per pixel (after compression)
+  // - Quality factor: we use quality=10 (good quality = larger file)
+  const pixels = width * height;
+  const bytesPerPixel = 0.02; // Conservative estimate for quality=10
+  const frameOverhead = 1024; // 1KB overhead per frame
+
+  const estimatedBytesPerFrame = (pixels * bytesPerPixel) + frameOverhead;
+  const estimatedTotalBytes = estimatedBytesPerFrame * frameCount;
+
+  // Convert to human-readable format
+  const estimatedMB = estimatedTotalBytes / (1024 * 1024);
+
+  let displayText;
+  if (estimatedMB < 1) {
+    displayText = `~${Math.round(estimatedMB * 1024)} KB`;
+  } else {
+    displayText = `~${estimatedMB.toFixed(1)} MB`;
+  }
+
+  // Add warning for large files
+  if (estimatedMB > 50) {
+    displayText += ' ⚠️';
+    sizeEstimateValue.style.color = '#d9534f';
+  } else if (estimatedMB > 20) {
+    sizeEstimateValue.style.color = '#f0ad4e';
+  } else {
+    sizeEstimateValue.style.color = '#0066cc';
+  }
+
+  sizeEstimateValue.textContent = displayText;
+}
+
+// Update estimate when any export setting changes
+exportWidth.addEventListener('input', updateGifSizeEstimate);
+exportHeight.addEventListener('input', updateGifSizeEstimate);
+exportDuration.addEventListener('input', updateGifSizeEstimate);
+exportFps.addEventListener('change', updateGifSizeEstimate);
+
+// Initialize the estimate on load
+updateGifSizeEstimate();
 
 // Export controls
 exportBtn.addEventListener('click', async () => {
