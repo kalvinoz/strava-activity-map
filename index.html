@@ -401,7 +401,8 @@
     }
 
     /* Instructions popup */
-    #instructions-popup {
+    #instructions-popup,
+    #logout-confirmation-popup {
       position: fixed;
       top: 0;
       left: 0;
@@ -414,7 +415,8 @@
       z-index: 3000;
     }
 
-    #instructions-popup.active {
+    #instructions-popup.active,
+    #logout-confirmation-popup.active {
       display: flex;
     }
 
@@ -494,6 +496,26 @@
     </div>
   </div>
 
+  <div id="logout-confirmation-popup">
+    <div class="instructions-modal" style="max-width: 400px;">
+      <h2><i class="fas fa-sign-out-alt"></i> Confirm Logout</h2>
+
+      <p>Are you sure you want to logout?</p>
+      <p style="margin-top: 15px; color: #666; font-size: 14px;">
+        This will clear your credentials, tokens, and cached activities from your browser.
+      </p>
+
+      <div style="display: flex; gap: 10px; margin-top: 25px;">
+        <button class="btn-close" style="background: #6c757d; flex: 1;" onclick="document.getElementById('logout-confirmation-popup').classList.remove('active')">
+          Cancel
+        </button>
+        <button class="btn-close" style="background: #d9534f; flex: 1;" onclick="confirmLogout()">
+          Logout
+        </button>
+      </div>
+    </div>
+  </div>
+
   <div id="map">
     <div id="capture-overlay" style="display: none;"></div>
     <div id="capture-box">
@@ -511,9 +533,14 @@
     <div id="activity-stats">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div><strong>Activities:</strong> <span id="stat-count">0</span></div>
-        <button id="refresh-activities-btn" style="display: none; background: none; border: none; color: #0066cc; cursor: pointer; padding: 4px; font-size: 14px;" title="Refresh activities from Strava">
-          <i class="fas fa-sync-alt"></i>
-        </button>
+        <div style="display: flex; gap: 8px;">
+          <button id="refresh-activities-btn" style="display: none; background: none; border: none; color: #0066cc; cursor: pointer; padding: 4px; font-size: 14px;" title="Refresh activities from Strava">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <button id="logout-btn" style="display: none; background: none; border: none; color: #d9534f; cursor: pointer; padding: 4px; font-size: 14px;" title="Logout">
+            <i class="fas fa-sign-out-alt"></i>
+          </button>
+        </div>
       </div>
       <div><strong>Total Distance:</strong> <span id="stat-distance">0</span> km</div>
       <div><strong>Activity Types:</strong> <span id="stat-types">0</span></div>

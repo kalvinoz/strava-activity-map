@@ -79,6 +79,7 @@ function getActivityColors() {
 const loadingEl = document.getElementById('loading');
 const loadBtn = document.getElementById('load-btn');
 const refreshActivitiesBtn = document.getElementById('refresh-activities-btn');
+const logoutBtn = document.getElementById('logout-btn');
 const activityTypeAll = document.getElementById('activity-type-all');
 const activityTypeList = document.getElementById('activity-type-list');
 const statCount = document.getElementById('stat-count');
@@ -221,8 +222,9 @@ function handleActivitiesLoaded(loadedActivities) {
   // Hide loading
   loadingEl.classList.add('hidden');
 
-  // Show refresh button and hide load button
+  // Show refresh and logout buttons, hide load button
   refreshActivitiesBtn.style.display = 'inline-block';
+  logoutBtn.style.display = 'inline-block';
   loadBtn.style.display = 'none';
 
   // Show instructions popup
@@ -1034,6 +1036,24 @@ refreshActivitiesBtn.addEventListener('click', () => {
   // Re-fetch activities from Strava
   showOnboarding();
 });
+
+logoutBtn.addEventListener('click', () => {
+  // Show logout confirmation dialog
+  document.getElementById('logout-confirmation-popup').classList.add('active');
+});
+
+// Logout confirmation function (global for onclick handler)
+window.confirmLogout = () => {
+  // Clear all auth and cache data
+  stravaAuth.clearAll();
+  stravaAPI.clearCache();
+
+  // Hide confirmation popup
+  document.getElementById('logout-confirmation-popup').classList.remove('active');
+
+  // Reload the page to restart onboarding
+  window.location.reload();
+};
 
 // "All Activities" pill handler
 activityTypeAll.parentElement.addEventListener('click', (e) => {
