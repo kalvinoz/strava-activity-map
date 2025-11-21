@@ -20,6 +20,13 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
   maxZoom: 20
 }).addTo(map);
 
+// Update stats when map bounds change (pan/zoom)
+map.on('moveend', () => {
+  if (activities.length > 0) {
+    updateStats();
+  }
+});
+
 // State
 let activities = [];
 let polylines = [];
@@ -98,6 +105,7 @@ const exportDuration = document.getElementById('export-duration');
 const exportWidth = document.getElementById('export-width');
 const exportHeight = document.getElementById('export-height');
 const exportFps = document.getElementById('export-fps');
+const sizeEstimateValue = document.getElementById('size-estimate-value');
 const exportProgress = document.getElementById('export-progress');
 const progressFill = document.getElementById('progress-fill');
 const exportStatus = document.getElementById('export-status');
@@ -224,19 +232,43 @@ function handleActivitiesLoaded(loadedActivities) {
 }
 
 function updateStats() {
-  const stats = activities.reduce((acc, activity) => {
+  // Get filtered activities based on type selection
+  const selectedTypes = getSelectedActivityTypes();
+  let filteredActivities = selectedTypes === 'all'
+    ? activities
+    : activities.filter(a => selectedTypes.includes(a.type));
+
+  // Filter by map bounds - only include activities with at least one point visible
+  const mapBounds = map ? map.getBounds() : null;
+  if (mapBounds) {
+    filteredActivities = filteredActivities.filter(activity => {
+      const polylineStr = activity.map?.summary_polyline;
+      if (!polylineStr) return false;
+
+      const coords = decodePolyline(polylineStr);
+      // Check if any point is within the current map bounds
+      return coords.some(([lat, lng]) => mapBounds.contains([lat, lng]));
+    });
+  }
+
+  // Calculate stats from filtered activities
+  const stats = filteredActivities.reduce((acc, activity) => {
     acc.types.add(activity.type);
     acc.totalDistance += activity.distance || 0;
     return acc;
   }, { types: new Set(), totalDistance: 0 });
 
-  statCount.textContent = activities.length;
+  statCount.textContent = filteredActivities.length;
   statDistance.textContent = (stats.totalDistance / 1000).toFixed(2);
   statTypes.textContent = stats.types.size;
 }
 
 function populateActivityTypes() {
-  const types = [...new Set(activities.map(a => a.type))].sort();
+  // Only include types that have at least one activity with a polyline
+  const typesWithPolylines = activities
+    .filter(a => a.map?.summary_polyline)
+    .map(a => a.type);
+  const types = [...new Set(typesWithPolylines)].sort();
 
   // Clear existing pills
   activityTypeList.innerHTML = '';
@@ -349,49 +381,6 @@ function populateColorSchemes() {
 
     container.appendChild(row);
   });
-
-  // Add default color picker
-  const defaultRow = document.createElement('div');
-  defaultRow.style.cssText = 'display: flex; align-items: center; justify-content: space-between; margin: 10px 0; padding: 8px; background: #f0f0f0; border-radius: 4px;';
-
-  const defaultLabel = document.createElement('span');
-  defaultLabel.textContent = 'Other';
-  defaultLabel.style.cssText = 'font-weight: 500; min-width: 80px; font-style: italic;';
-
-  const defaultSelect = document.createElement('select');
-  defaultSelect.style.cssText = 'flex: 1; margin: 0 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid #ddd;';
-
-  COLOR_PALETTE.forEach(color => {
-    const option = document.createElement('option');
-    option.value = color.value;
-    option.textContent = color.name;
-    option.style.cssText = `background: ${color.value}; color: white;`;
-    if ((customActivityColors.default || DEFAULT_ACTIVITY_COLORS.default) === color.value) {
-      option.selected = true;
-    }
-    defaultSelect.appendChild(option);
-  });
-
-  const defaultPreview = document.createElement('div');
-  defaultPreview.style.cssText = `width: 30px; height: 30px; background: ${customActivityColors.default || DEFAULT_ACTIVITY_COLORS.default}; border-radius: 4px; border: 2px solid #ddd;`;
-
-  defaultSelect.addEventListener('change', () => {
-    const newColor = defaultSelect.value;
-    customActivityColors.default = newColor;
-    defaultPreview.style.background = newColor;
-
-    if (animationController) {
-      initializeAnimation();
-    } else {
-      renderActivities();
-    }
-  });
-
-  defaultRow.appendChild(defaultLabel);
-  defaultRow.appendChild(defaultSelect);
-  defaultRow.appendChild(defaultPreview);
-
-  container.appendChild(defaultRow);
 }
 
 // Get selected activity types
@@ -437,6 +426,9 @@ function handleActivityTypeChange() {
 
   // Update color schemes to show only selected types
   populateColorSchemes();
+
+  // Update stats to reflect new filter
+  updateStats();
 
   // Re-render activities with new filter
   if (animationController) {
@@ -743,7 +735,7 @@ function setupCaptureBoxResize() {
       let targetAspectRatio = null;
 
       if (lockAspectRatio) {
-        // Calculate target aspect ratio based on mode
+        // Calculate target aspect ratio (width/height)
         if (captureBox.ratio === 'square') {
           targetAspectRatio = 1; // 1:1
         } else if (captureBox.ratio === 'vertical') {
@@ -753,51 +745,108 @@ function setupCaptureBoxResize() {
         }
       }
 
-      // Calculate new dimensions based on which handle is being dragged
+      // For each corner, the opposite corner is the anchor point that stays locked
+      // Calculate dimensions based on handle and lock opposite corner in place
       if (lockAspectRatio && targetAspectRatio) {
-        // For locked aspect ratio, calculate based on the dominant dimension
-        const totalDelta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
-
+        // With locked aspect ratio, follow the cursor as closely as possible
+        // while maintaining the aspect ratio and keeping opposite corner fixed
         switch (currentHandle) {
-          case 'se': // Bottom-right
-            newWidth = startWidth + totalDelta;
-            newHeight = newWidth / targetAspectRatio;
+          case 'se': // Bottom-right (anchor: top-left)
+            // Opposite corner (top-left) stays at (startLeft, startTop)
+            // Calculate desired size to reach cursor from anchor
+            const desiredWidthSE = Math.abs(e.clientX - startLeft);
+            const desiredHeightSE = Math.abs(e.clientY - startTop);
+
+            // Use the dimension that gives us the larger box (closer to cursor)
+            if (desiredWidthSE / targetAspectRatio > desiredHeightSE) {
+              newHeight = desiredHeightSE;
+              newWidth = newHeight * targetAspectRatio;
+            } else {
+              newWidth = desiredWidthSE;
+              newHeight = newWidth / targetAspectRatio;
+            }
+            // Anchor stays at top-left
+            newLeft = startLeft;
+            newTop = startTop;
             break;
-          case 'sw': // Bottom-left
-            newWidth = startWidth - totalDelta;
-            newHeight = newWidth / targetAspectRatio;
-            newLeft = startLeft + totalDelta;
+
+          case 'sw': // Bottom-left (anchor: top-right)
+            // Opposite corner (top-right) stays at (startLeft + startWidth, startTop)
+            const anchorRightSW = startLeft + startWidth;
+            const desiredWidthSW = Math.abs(anchorRightSW - e.clientX);
+            const desiredHeightSW = Math.abs(e.clientY - startTop);
+
+            if (desiredWidthSW / targetAspectRatio > desiredHeightSW) {
+              newHeight = desiredHeightSW;
+              newWidth = newHeight * targetAspectRatio;
+            } else {
+              newWidth = desiredWidthSW;
+              newHeight = newWidth / targetAspectRatio;
+            }
+            // Anchor stays at top-right
+            newLeft = anchorRightSW - newWidth;
+            newTop = startTop;
             break;
-          case 'ne': // Top-right
-            newWidth = startWidth + totalDelta;
-            newHeight = newWidth / targetAspectRatio;
-            newTop = startTop - (newHeight - startHeight);
+
+          case 'ne': // Top-right (anchor: bottom-left)
+            // Opposite corner (bottom-left) stays at (startLeft, startTop + startHeight)
+            const anchorBottomNE = startTop + startHeight;
+            const desiredWidthNE = Math.abs(e.clientX - startLeft);
+            const desiredHeightNE = Math.abs(anchorBottomNE - e.clientY);
+
+            if (desiredWidthNE / targetAspectRatio > desiredHeightNE) {
+              newHeight = desiredHeightNE;
+              newWidth = newHeight * targetAspectRatio;
+            } else {
+              newWidth = desiredWidthNE;
+              newHeight = newWidth / targetAspectRatio;
+            }
+            // Anchor stays at bottom-left
+            newLeft = startLeft;
+            newTop = anchorBottomNE - newHeight;
             break;
-          case 'nw': // Top-left
-            newWidth = startWidth - totalDelta;
-            newHeight = newWidth / targetAspectRatio;
-            newLeft = startLeft + totalDelta;
-            newTop = startTop - (newHeight - startHeight);
+
+          case 'nw': // Top-left (anchor: bottom-right)
+            // Opposite corner (bottom-right) stays at (startLeft + startWidth, startTop + startHeight)
+            const anchorRightNW = startLeft + startWidth;
+            const anchorBottomNW = startTop + startHeight;
+            const desiredWidthNW = Math.abs(anchorRightNW - e.clientX);
+            const desiredHeightNW = Math.abs(anchorBottomNW - e.clientY);
+
+            if (desiredWidthNW / targetAspectRatio > desiredHeightNW) {
+              newHeight = desiredHeightNW;
+              newWidth = newHeight * targetAspectRatio;
+            } else {
+              newWidth = desiredWidthNW;
+              newHeight = newWidth / targetAspectRatio;
+            }
+            // Anchor stays at bottom-right
+            newLeft = anchorRightNW - newWidth;
+            newTop = anchorBottomNW - newHeight;
             break;
         }
       } else {
-        // Free resize (no aspect ratio lock)
+        // Free resize (no aspect ratio lock) - follow cursor exactly
         switch (currentHandle) {
-          case 'se': // Bottom-right
+          case 'se': // Bottom-right (anchor: top-left)
             newWidth = startWidth + dx;
             newHeight = startHeight + dy;
+            newLeft = startLeft;
+            newTop = startTop;
             break;
-          case 'sw': // Bottom-left
+          case 'sw': // Bottom-left (anchor: top-right)
             newWidth = startWidth - dx;
             newHeight = startHeight + dy;
             newLeft = startLeft + dx;
+            newTop = startTop;
             break;
-          case 'ne': // Top-right
+          case 'ne': // Top-right (anchor: bottom-left)
             newWidth = startWidth + dx;
             newHeight = startHeight - dy;
+            newLeft = startLeft;
             newTop = startTop + dy;
             break;
-          case 'nw': // Top-left
+          case 'nw': // Top-left (anchor: bottom-right)
             newWidth = startWidth - dx;
             newHeight = startHeight - dy;
             newLeft = startLeft + dx;
@@ -853,6 +902,9 @@ function setupCaptureBoxResize() {
     // Update export dimensions to match capture box
     exportWidth.value = Math.round(newWidth);
     exportHeight.value = Math.round(newHeight);
+
+    // Update size estimate
+    updateGifSizeEstimate();
 
     // Store bounds
     captureBox.bounds = {
@@ -967,6 +1019,9 @@ function updateCaptureBox(ratio) {
   // Update export dimensions to match capture box
   exportWidth.value = Math.round(width);
   exportHeight.value = Math.round(height);
+
+  // Update size estimate
+  updateGifSizeEstimate();
 }
 
 // Event listeners
@@ -1090,6 +1145,60 @@ exportHeight.addEventListener('input', () => {
   const aspectRatio = parseInt(captureBoxEl.style.width) / parseInt(captureBoxEl.style.height);
   exportWidth.value = Math.round(newHeight * aspectRatio);
 });
+
+// Estimate GIF file size based on settings
+function updateGifSizeEstimate() {
+  const width = parseInt(exportWidth.value);
+  const height = parseInt(exportHeight.value);
+  const duration = parseInt(exportDuration.value);
+  const fps = parseInt(exportFps.value);
+
+  // Calculate number of frames (including final heatmap frame)
+  const frameCount = Math.floor(duration * fps) + 1;
+
+  // Estimate size per frame based on resolution
+  // GIF compression varies, but for map data with routes:
+  // - Base overhead: ~1KB per frame
+  // - Pixel data: roughly 0.015-0.025 bytes per pixel (after compression)
+  // - Quality factor: we use quality=10 (good quality = larger file)
+  const pixels = width * height;
+  const bytesPerPixel = 0.02; // Conservative estimate for quality=10
+  const frameOverhead = 1024; // 1KB overhead per frame
+
+  const estimatedBytesPerFrame = (pixels * bytesPerPixel) + frameOverhead;
+  const estimatedTotalBytes = estimatedBytesPerFrame * frameCount;
+
+  // Convert to human-readable format
+  const estimatedMB = estimatedTotalBytes / (1024 * 1024);
+
+  let displayText;
+  if (estimatedMB < 1) {
+    displayText = `~${Math.round(estimatedMB * 1024)} KB`;
+  } else {
+    displayText = `~${estimatedMB.toFixed(1)} MB`;
+  }
+
+  // Add warning for large files
+  if (estimatedMB > 50) {
+    displayText += ' ⚠️';
+    sizeEstimateValue.style.color = '#d9534f';
+  } else if (estimatedMB > 20) {
+    sizeEstimateValue.style.color = '#f0ad4e';
+  } else {
+    sizeEstimateValue.style.color = '#0066cc';
+  }
+
+  sizeEstimateValue.textContent = displayText;
+}
+
+// Update estimate when any export setting changes
+exportWidth.addEventListener('input', updateGifSizeEstimate);
+exportHeight.addEventListener('input', updateGifSizeEstimate);
+exportDuration.addEventListener('input', updateGifSizeEstimate);
+exportFps.addEventListener('change', updateGifSizeEstimate);
+
+// Initialize the estimate on load
+updateGifSizeEstimate();
 
 // Export controls
 exportBtn.addEventListener('click', async () => {
