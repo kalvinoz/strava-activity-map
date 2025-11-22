@@ -439,6 +439,12 @@ function handleActivitiesLoaded(loadedActivities) {
   scheduleURLUpdate();
 
   console.log(`Loaded ${activities.length} activities`);
+
+  // Expose to window for testing/experiments (development only)
+  window.activities = activities;
+  window.gifExporter = gifExporter;
+  window.animationController = animationController;
+  console.log('Exposed activities, gifExporter, and animationController to window for testing');
 }
 
 function updateStats() {

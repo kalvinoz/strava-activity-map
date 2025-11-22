@@ -319,34 +319,38 @@ export class GifExporter {
   }
 
   /**
-   * Get color for activity type
+   * Get color for activity type - uses the color scheme from AnimationController
    */
   _getActivityColor(type) {
-    const colors = {
-      'Run': '#fc4c02',
-      'Ride': '#0066cc',
-      'Swim': '#00cccc',
-      'Walk': '#66cc00',
-      'Hike': '#996600',
-      'VirtualRide': '#8800cc',
-      'default': '#888888'
-    };
-    return colors[type] || colors.default;
+    // Get colors from AnimationController's color function
+    const colors = this.animationController.getColorsFn();
+    return colors[type] || colors['default'] || '#888888';
   }
 
   /**
    * Calculate dynamic opacity based on activity density in capture area
+   * Uses logarithmic scaling for better visibility across all density levels
    */
   _calculateHeatmapOpacity(activityCount) {
-    // Few activities (1-20): high opacity (0.6-0.4)
-    // Medium activities (20-100): medium opacity (0.4-0.25)
-    // Many activities (100+): low opacity (0.25-0.15)
-    if (activityCount <= 20) {
-      return Math.max(0.4, 0.6 - (activityCount / 20) * 0.2);
-    } else if (activityCount <= 100) {
-      return Math.max(0.25, 0.4 - ((activityCount - 20) / 80) * 0.15);
+    // Use logarithmic scaling to handle wide range of activity counts
+    // Few activities (1-10): high opacity (0.5-0.35)
+    // Medium activities (10-50): medium opacity (0.35-0.2)
+    // Many activities (50-200): low opacity (0.2-0.12)
+    // Very many activities (200+): very low opacity (0.12-0.08)
+
+    if (activityCount <= 10) {
+      // Linear scaling for very few activities
+      return Math.max(0.35, 0.5 - (activityCount / 10) * 0.15);
+    } else if (activityCount <= 50) {
+      // Gentle decrease for medium density
+      return Math.max(0.2, 0.35 - ((activityCount - 10) / 40) * 0.15);
+    } else if (activityCount <= 200) {
+      // Slower decrease for high density
+      return Math.max(0.12, 0.2 - ((activityCount - 50) / 150) * 0.08);
     } else {
-      return Math.max(0.15, 0.25 - ((activityCount - 100) / 200) * 0.1);
+      // Logarithmic scaling for very high density to prevent oversaturation
+      const logScale = Math.log10(activityCount / 200 + 1);
+      return Math.max(0.06, 0.12 - logScale * 0.04);
     }
   }
 
